@@ -1,0 +1,32 @@
+// 存储抽象层（spec_v1.md §2.1, §5）
+// 业务代码统一通过这层读写，不直接碰 localStorage / wx.setStorageSync。
+// `uni` 由 uni-app 运行时注入为全局对象；Node 环境下跑断言脚本时由调用方自行 mock。
+
+export const KEYS = {
+	COLLECTION_UNLOCK_STATES: "collectionUnlockStates", // CollectionUnlockState[]，按 collection_id 存为 map
+	COMPLETION_EVENTS: "completionEvents", // CompletionEvent[]
+	CONVERSATIONS: "conversations", // Conversation[]
+	COMPLETION_SUMMARIES: "completionSummaries", // CompletionSummary[]
+	REVIEW_SNAPSHOTS: "reviewSnapshots", // ReviewSnapshot[]
+	PUSH_GLOBAL_DONE_SET: "pushGlobalDoneSet", // GlobalDoneSet（spec §2.3），content_id[]，全局不分场景
+	BASIC_INFO: "basicInfo", // BasicInfo: { player_id, birth_date, scene_tags[] }
+	DAILY_TASK_POOL: "dailyTaskPool", // DailyTask[]（已领取未完成的每日任务）
+	DAILY_CARD_SHOWN_DATE: "dailyCardShownDate", // YYYY-MM-DD，防止同天重复弹出日推卡片
+	DAILY_COMPLETED_TASKS: "dailyCompletedTasks", // 已完成的每日任务快照，含 completedDate + completionEventId
+};
+
+export function get(key, defaultValue) {
+	const value = uni.getStorageSync(key);
+	if (value === "" || value === null || value === undefined) {
+		return defaultValue;
+	}
+	return value;
+}
+
+export function set(key, value) {
+	uni.setStorageSync(key, value);
+}
+
+export function remove(key) {
+	uni.removeStorageSync(key);
+}
