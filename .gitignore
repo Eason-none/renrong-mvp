@@ -22,4 +22,4 @@ dist
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+*.sw?.codegraph/
