@@ -1,0 +1,45 @@
+## ADDED Requirements
+
+### Requirement: 主页提供"现在就来一件"即时入口
+主页在呼吸引导完成后的常规布局中 SHALL 提供"现在就来一件"入口，与"今日任务候选"入口并列常驻。点击后 SHALL 按用户 `BasicInfo.scene_tags` 从每日任务池抽取 1 条，直接以任务详情卡形态全屏展示（title / time / instructions），无任何中间选择步骤。
+
+#### Scenario: 零决策抽取
+- **WHEN** 用户点击"现在就来一件"
+- **THEN** 立即展示 1 条任务详情卡，过程中不出现场景选择、候选列表或任何需要用户决策的界面
+
+#### Scenario: 场景三选交互不再存在
+- **WHEN** 用户完成呼吸引导进入主页
+- **THEN** 页面上不存在"想在哪儿做"场景选择界面及旧版推送卡片流程（PushFlow）
+
+### Requirement: 即时任务抽取规则
+抽取 SHALL 复用每日任务候选逻辑：与用户 scene_tags 有任意标签交集的条目中随机取 1 条，排除已在 DailyTaskPool 中的和今日已完成的条目；交集为空或不足时用 `general` 条目补足。抽取结果 SHALL NOT 提供"换一个"刷新按钮。
+
+#### Scenario: 正常抽取
+- **WHEN** 用户 scene_tags 匹配到若干未领取、未完成的条目
+- **THEN** 随机展示其中 1 条
+
+#### Scenario: 池耗尽降级
+- **WHEN** 匹配条目与 general 补足后仍为空（全部已领取或已完成）
+- **THEN** 展示温婉空态文案（大意：今天的都做过了，歇一歇也很好），不报错、不展示空白卡片
+
+### Requirement: 即时任务完成流程复用每日任务闭环
+即时任务详情卡 SHALL 提供"做完啦"与"← 返回"操作，不出现"领取"概念。点击"做完啦" SHALL 直接创建 `content_type: "daily_task"` 完成事件并计入"今日已完成"区块，随后进入与每日任务一致的聊聊邀请流程（可聊可跳过，对话为推送层语义：退出不生成摘要）。点击"← 返回" SHALL 回到主页常规布局，该条目不进入 DailyTaskPool、不产生任何记录。
+
+#### Scenario: 完成并聊聊
+- **WHEN** 用户在即时任务卡点击"做完啦"后选择"聊聊"
+- **THEN** 进入对话；"说完了"退出后不生成完成摘要，任务出现在"今日已完成"
+
+#### Scenario: 返回不留痕
+- **WHEN** 用户点击"← 返回"离开即时任务卡
+- **THEN** DailyTaskPool、今日已完成、完成事件均无任何新增记录
+
+### Requirement: 旧推送层机制移除
+系统 SHALL NOT 再包含推送层去重机制：`pushGlobalDoneSet` 存储键从 KEYS 中移除，不再有任何代码路径创建 `content_type: "push"` 的完成事件。历史已存在的 push 类型完成事件 SHALL 保持可读（类型校验白名单保留 `"push"`），其关联的历史对话入口不受影响。
+
+#### Scenario: 不再产生 push 事件
+- **WHEN** 用户通过任意现存入口完成任意内容
+- **THEN** 产生的完成事件类型只可能是 `daily_task` 或 `collection_item`
+
+#### Scenario: 历史 push 对话仍可访问
+- **WHEN** 用户查看一条由旧推送层产生的历史对话
+- **THEN** 正常展示，不因 pushPool 机制移除而报错
