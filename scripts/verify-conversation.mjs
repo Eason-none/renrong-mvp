@@ -70,20 +70,13 @@ try {
 }
 assertTrue(threw, "1:1绑定: 同一completion_event_id二次创建应抛出异常");
 
-// --- AC1：每条用户消息计数+1，count%5==0时shouldPromptArchive为true，但不阻断输入 ---
-for (let i = 1; i <= 4; i++) {
-	const { conversation: updated, shouldPromptArchive } = conversation.addUserMessage(conv.id, `消息${i}`);
+// --- AC1（2026-07-06按v8同步：5条消息提示归档机制已随"说完了"重设计移除，
+// addUserMessage直接返回更新后的Conversation，不再返回{conversation, shouldPromptArchive}）---
+for (let i = 1; i <= 6; i++) {
+	const updated = conversation.addUserMessage(conv.id, `消息${i}`);
 	assertEqual(updated.user_message_count, i, `AC1: 第${i}条消息后计数正确`);
-	assertEqual(shouldPromptArchive, false, `AC1: 第${i}条消息未达5的倍数，不应提示归档`);
+	assertEqual(updated.archived, false, `AC1: 第${i}条消息后仍未归档（不存在任何消息数触发的自动归档）`);
 }
-const fifth = conversation.addUserMessage(conv.id, "消息5");
-assertEqual(fifth.conversation.user_message_count, 5, "AC1: 第5条消息后计数为5");
-assertEqual(fifth.shouldPromptArchive, true, "AC1: 第5条消息触发shouldPromptArchive=true");
-
-// 用户"不理会提示继续打字"：继续发消息，状态不受影响（不阻断输入）
-const sixth = conversation.addUserMessage(conv.id, "消息6（不理会提示继续打字）");
-assertEqual(sixth.conversation.user_message_count, 6, "AC1: 忽略提示后仍能继续发消息，计数继续增加");
-assertEqual(sixth.conversation.archived, false, "AC1: 忽略提示不会自动归档，状态不变");
 
 // assistant消息不计入user_message_count
 conversation.addAssistantMessage(conv.id, "AI回复，不计入用户消息数");

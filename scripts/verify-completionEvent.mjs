@@ -71,14 +71,14 @@ assertThrows(
 // 回归：被拒绝的完成事件不应留下"半写入"的脏数据——校验失败时事件不能进入storage。
 assertEqual(get(KEYS.COMPLETION_EVENTS, []).length, 1, "回归: locked图鉴被拒绝的完成事件不应被持久化（仍只有此前的push事件1条）");
 
-machine.unlockInitial("collection_001");
+machine.activate("collection_001");
 const collectionEvent = completionEvent.createCompletionEvent({
 	contentId: "color_001",
 	contentType: "collection_item",
 	collectionId: "collection_001",
 });
 assertEqual(collectionEvent.collection_id, "collection_001", "AC1: collection_item事件collection_id正确");
-assertEqual(machine.getCollectionState("collection_001").status, "in_progress", "AC1: 创建collection_item事件驱动状态机进入in_progress");
+assertEqual(machine.getCollectionState("collection_001").status, "active", "AC1: 创建collection_item事件后状态机保持active（v7状态机：locked/active/completed，无in_progress）");
 
 // 校验：非法contentType / collection_item缺collectionId
 assertThrows(

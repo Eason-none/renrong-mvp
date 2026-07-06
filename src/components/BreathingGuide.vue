@@ -1,5 +1,5 @@
 <template>
-  <view class="breathing">
+  <view class="breathing" :class="{ 'breathing--leaving': leaving }">
     <view class="breathing__intro">这里每天有一些小事，去做做看，感受一下就够了。</view>
 
     <view class="breathing__stage">
@@ -43,6 +43,7 @@ export default {
       phaseVisible: false,
       circleScale: 0.82,
       circleTransition: 'transform 4s ease-in-out',
+      leaving: false,
     }
   },
   created() {
@@ -63,7 +64,13 @@ export default {
     },
     skip() {
       this.clearTimers()
-      this.$emit('done')
+      this.finish()
+    },
+    // 整体渐淡0.6s后再真正离场——呼吸引导的收束不该是硬切
+    finish() {
+      if (this.leaving) return
+      this.leaving = true
+      this.later(() => this.$emit('done'), 600)
     },
     start() {
       if (this.started) return
@@ -96,7 +103,7 @@ export default {
           this.later(() => {
             const next = count + 1
             if (next >= 2) {
-              this.$emit('done')
+              this.finish()
             } else {
               this.runCycle(next)
             }
@@ -114,6 +121,12 @@ export default {
   flex-direction: column;
   align-items: center;
   padding-top: 60rpx;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+.breathing--leaving {
+  opacity: 0;
 }
 
 .breathing__intro {

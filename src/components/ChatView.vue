@@ -38,7 +38,11 @@
       <view class="chat__pending-image-remove" @tap="pendingImage = null">移除图片</view>
     </view>
 
-    <view v-if="finishing" class="chat__closing-overlay">
+    <view
+      v-if="finishing"
+      class="chat__closing-overlay"
+      :class="{ 'chat__closing-overlay--leaving': closingLeaving }"
+    >
       <text class="chat__closing-text">这次说的，都在了</text>
     </view>
 
@@ -81,6 +85,7 @@ export default {
       errorText: '',
       bottomAnchor: 'chat-bottom-anchor',
       finishing: false,
+      closingLeaving: false,
     }
   },
   created() {
@@ -150,7 +155,9 @@ export default {
         this.inputText = content
         this.pendingImage = image
         this.streamingText = ''
-        this.errorText = `没收到回应：${err.message}，可以再发一次`
+        // 技术细节只进console；给用户看的必须是温婉语气（§十：不制造焦虑），不带原始报错字样
+        console.error('streamMainChat failed:', err)
+        this.errorText = '刚才这句好像没送出去，你的话都还在，缓一缓再发一次就好'
       } finally {
         this.sending = false
       }
@@ -160,6 +167,9 @@ export default {
     async done() {
       if (this.finishing) return
       this.finishing = true
+      // 收尾文案至少停留1.2s（图鉴层归档可能很快返回，不设下限会一闪而过），
+      // 之后渐淡0.6s再关闭——离开的节奏和这句话的语气一致，不能"啪"地消失。
+      const minDisplay = new Promise((r) => setTimeout(r, 1200))
       if (this.layer === 'collection') {
         try {
           await archiveConversation(this.conversationId, (conversation) =>
@@ -168,9 +178,10 @@ export default {
         } catch (err) {
           console.error('archiveConversation failed:', err)
         }
-      } else {
-        await new Promise((r) => setTimeout(r, 1200))
       }
+      await minDisplay
+      this.closingLeaving = true
+      await new Promise((r) => setTimeout(r, 600))
       this.$emit('close')
     },
   },
@@ -251,7 +262,7 @@ export default {
 }
 
 .chat__error {
-  color: #c0392b;
+  color: var(--c-accent);
   font-size: 24rpx;
   padding: 12rpx 0;
 }
@@ -279,6 +290,9 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+  animation: chat-closing-in 0.45s ease;
   background: rgba(255, 255, 255, 0.92);
   display: flex;
   align-items: center;
@@ -290,6 +304,15 @@ export default {
   font-size: 32rpx;
   color: var(--c-ink);
   letter-spacing: 2rpx;
+}
+
+.chat__closing-overlay--leaving {
+  opacity: 0;
+}
+
+@keyframes chat-closing-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .chat__input-row {

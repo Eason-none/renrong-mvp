@@ -72,7 +72,8 @@ const pendingCollectionIds = new Set();
 // AC1 + §2.4：图鉴100%触发后的编排，三步顺序不能反：
 //   1) 先用当前已归档对话产生的 CompletionSummary 生成 ReviewSnapshot(sequence=1)——
 //      素材必须在调用生成函数之前就快照固定，不能等 await 回来后再重新计算。
-//   2) 生成完成后，才把该图鉴下当时仍未归档的对话统一被动归档。
+//   2) 生成完成后，才把"进入本函数那一刻定格的未归档名单"统一被动归档（名单必须在
+//      任何await之前同步收集，否则会把回顾生成期间用户新开的对话误伤进来，见函数内注释）。
 //      这里用顺序await而非Promise.all：并发跑会让多个archiveConversation调用都基于同一份旧的
 //      CONVERSATIONS数组快照去读写，后写的会覆盖丢失先写的归档结果（doubt-driven复核提醒的
 //      lost-update风险）——顺序执行是有意的设计决策，不是疏漏。
@@ -102,6 +103,13 @@ export async function triggerReviewOnCompletion(collectionId, generateReviewText
 
 	pendingCollectionIds.add(collectionId);
 	try {
+		// 被动归档名单在进入编排的这一刻同步定格，不能等步骤1的await回来后再收集：
+		// 回顾生成要好几秒，期间用户很可能正对最后完成的那个条目点"聊聊"新建对话——
+		// 晚收集会把这个正在进行的对话扫进被动归档，用户下一条消息就撞上assertNotArchived
+		// 发不出去（真机验收实际踩到的bug）。§6.5.3的语义本来就是"触发那一刻仍未归档的对话"。
+		// 归档动作本身仍在步骤1之后执行，素材快照的时序约束不受影响；名单里若有对话
+		// 期间被用户主动"说完了"归档，archiveConversation幂等no-op天然跳过。
+		const unarchivedConversations = getUnarchivedConversationsForCollection(collectionId);
 		let reviewSnapshot = findExistingFirstReviewSnapshot(collectionId);
 		if (!reviewSnapshot) {
 			const summariesSnapshot = gatherExistingSummaries(collectionId);
@@ -120,7 +128,6 @@ export async function triggerReviewOnCompletion(collectionId, generateReviewText
 			set(KEYS.REVIEW_SNAPSHOTS, reviewSnapshots);
 		}
 
-		const unarchivedConversations = getUnarchivedConversationsForCollection(collectionId);
 		for (const conv of unarchivedConversations) {
 			await archiveConversation(conv.id, generateSummaryText);
 		}

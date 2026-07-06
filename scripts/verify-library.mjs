@@ -28,14 +28,22 @@ const pushContent = library.getAllPushContent();
 assertEqual(pushContent.length, 38, "推送层共38条");
 assertEqual(new Set(pushContent.map((i) => i.id)).size, 38, "推送层id全部唯一");
 
-// 2. 图鉴：3个已建图鉴，条目数与已知齐全
+// 2. 图鉴：11个已建图鉴（2026-07-06同步：感知5本+事件6本，共80条），条目数与已知齐全
 const collections = library.getAllCollections();
-assertEqual(collections.length, 3, "已建图鉴共3个");
+assertEqual(collections.length, 11, "已建图鉴共11个");
 
 const expectedCollections = {
 	collection_001: { name: "颜色图鉴", count: 7 },
 	collection_002: { name: "角落图鉴", count: 7 },
 	collection_003: { name: "想法图鉴", count: 9 },
+	collection_004: { name: "连接图鉴", count: 7 },
+	collection_005: { name: "物件图鉴", count: 8 },
+	collection_006: { name: "城市探索图鉴", count: 7 },
+	collection_007: { name: "独处图鉴", count: 7 },
+	collection_008: { name: "自然接触图鉴", count: 7 },
+	collection_009: { name: "时间实验图鉴", count: 7 },
+	collection_010: { name: "饮食探索图鉴", count: 7 },
+	collection_011: { name: "人文空间图鉴", count: 7 },
 };
 for (const [id, expected] of Object.entries(expectedCollections)) {
 	const collection = library.getCollectionById(id);
