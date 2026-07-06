@@ -1,0 +1,56 @@
+# daily-tasks Specification
+
+## Purpose
+TBD - created by archiving change daily-task-system. Update Purpose after archive.
+## Requirements
+### Requirement: 用户可从日推卡片领取候选任务
+用户 SHALL 能在日推卡片上对任意候选任务点击「领取」。领取后该任务 SHALL 写入持久化的 `DailyTaskPool` 存储，并在卡片上标记为已领取状态。同一任务 SHALL NOT 被重复领取（已在池中则领取按钮变灰或隐藏）。
+
+#### Scenario: 领取一个候选任务
+- **WHEN** 用户点击某候选任务的「领取」按钮
+- **THEN** 该任务写入 DailyTaskPool，卡片上该任务显示"已领取"标记，按钮不可再点
+
+#### Scenario: 候选任务已在 DailyTaskPool 中（重复展示同一条目时）
+- **WHEN** 系统检测到候选任务的 id 已存在于 DailyTaskPool 中
+- **THEN** 该候选任务直接显示"已领取"，不再显示领取按钮
+
+### Requirement: 已领取任务在「当下」tab 中持久展示
+「当下」tab SHALL 在现有推送流程之外新增「我的日常任务」区块，展示所有已领取且未完成的任务列表（标题 + hook 文案）。区块在 DailyTaskPool 为空时不显示。
+
+#### Scenario: 有已领取未完成的任务
+- **WHEN** 用户进入「当下」tab，DailyTaskPool 中有未完成条目
+- **THEN** 显示「我的日常任务」区块，列出所有未完成的已领取任务
+
+#### Scenario: DailyTaskPool 为空
+- **WHEN** 用户进入「当下」tab，DailyTaskPool 中无未完成条目
+- **THEN** 不显示「我的日常任务」区块
+
+### Requirement: 点击已领取任务进入完成流程
+用户 SHALL 能点击「我的日常任务」列表中的任意条目，进入任务卡片展示→做完啦→聊聊邀请→对话（或跳过）的完整流程，流程结构与推送层一致。
+
+#### Scenario: 点击任务进入卡片
+- **WHEN** 用户点击「我的日常任务」中的某条任务
+- **THEN** 展示该任务的完整内容卡片（标题、时长、具体做法），提供「做完啦」按钮
+
+#### Scenario: 点击做完啦后聊聊邀请
+- **WHEN** 用户点击「做完啦」
+- **THEN** 展示聊聊邀请文案"刚才做的这件事给你带来了什么感受吗？很愿意听你聊聊"，提供「聊聊」和「跳过」按钮
+
+#### Scenario: 完成后从 DailyTaskPool 移除
+- **WHEN** 用户点击「做完啦」（无论随后选择聊聊还是跳过）
+- **THEN** 该任务从 DailyTaskPool 的未完成列表中移除，不再出现在「我的日常任务」区块
+
+### Requirement: 已领取任务不设过期时间
+DailyTaskPool 中的任务 SHALL NOT 有任何过期或自动清除机制。任务在用户完成之前 SHALL 始终保留在池中，跨天、跨周均如此。
+
+#### Scenario: 跨天后任务仍在
+- **WHEN** 用户领取任务后次日打开 App
+- **THEN** 已领取未完成的任务仍出现在「我的日常任务」区块
+
+### Requirement: 未领取的候选任务不产生任何记录
+未被用户领取的当日候选任务 SHALL NOT 写入任何持久化存储。日推卡片关闭后，未领取的候选任务对用户不可见、不可追溯。
+
+#### Scenario: 关闭卡片后未领取任务消失
+- **WHEN** 用户关闭日推卡片，且某候选任务未被领取
+- **THEN** 该任务不出现在「我的日常任务」区块，次日日推卡片展示新的候选任务
+

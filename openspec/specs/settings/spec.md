@@ -1,5 +1,8 @@
-## MODIFIED Requirements
+# settings Specification
 
+## Purpose
+TBD - created by archiving change daily-task-system. Update Purpose after archive.
+## Requirements
 ### Requirement: 设置弹层列表项
 设置弹层 SHALL 展示三个列表项（按显示顺序）：「基本信息」、「主动提醒（去开启提醒）」、「隐私政策」。点击「基本信息」进入基本信息编辑页（见 basic-info-settings spec）；其余两项行为不变。
 
@@ -18,3 +21,4 @@
 #### Scenario: 点击隐私政策（行为不变）
 - **WHEN** 用户点击「隐私政策」
 - **THEN** 行为与当前一致（弹层内切换为隐私政策占位文本）
+
