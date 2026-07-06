@@ -10,6 +10,9 @@ import { getCollectionById, getCollectionItemById } from "../content/library.js"
 
 const PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "http://localhost:5555"
 const MODEL = import.meta.env.VITE_QWEN_MODEL
+// Supabase部署的代理前面挡着一层网关，没有Authorization头会被网关本身拒绝（跟Qwen真实key无关）；
+// anon key是设计给客户端公开持有的值，只用来敲开网关，代理内部会覆盖成真正的Qwen key再转发。
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // §5.4.2固定兜底模板：摘要全空时原样使用，不经模型生成（spec §3.5 AC2 / §6验证5）。
 function buildFallbackText(collectionName) {
@@ -78,7 +81,10 @@ function requestQwen(prompt) {
 		uni.request({
 			url: `${PROXY_URL}/qwen-proxy/chat/completions`,
 			method: "POST",
-			header: { "Content-Type": "application/json" },
+			header: {
+				"Content-Type": "application/json",
+				...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+			},
 			data: { model: MODEL, messages: [{ role: "user", content: prompt }] },
 			success: (res) => {
 				if (res.statusCode !== 200) {

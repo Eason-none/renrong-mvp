@@ -9,6 +9,11 @@
 
 const PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "http://localhost:5555";
 const MODEL = import.meta.env.VITE_QWEN_MODEL;
+// Supabase部署的代理前面挡着一层网关，没有Authorization头会被网关本身拒绝（跟Qwen真实key无关）；
+// anon key是Supabase项目里设计给客户端公开持有的值，不是敏感信息，只用来敲开网关，
+// 代理内部还是会把它覆盖成真正的Qwen key再转发。本地scripts/api-proxy.js没有这层网关，
+// 该变量留空时不发这个头，两种部署形态都兼容。
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // 对应11.1定稿文本；previousSummary为null/undefined时省略"上次印象"那一段（仅redo场景注入）。
 export function buildMainChatSystemPrompt({ contentTitle, instructions, previousSummary }) {
@@ -73,7 +78,10 @@ function parseSseLine(line, onDelta) {
 async function streamMainChatH5(systemPrompt, history, onDelta) {
 	const res = await fetch(`${PROXY_URL}/qwen-proxy/chat/completions`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: {
+			"Content-Type": "application/json",
+			...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+		},
 		body: JSON.stringify({
 			model: MODEL,
 			messages: [{ role: "system", content: systemPrompt }, ...history],
@@ -113,7 +121,10 @@ function streamMainChatWeixin(systemPrompt, history, onDelta) {
 		uni.request({
 			url: `${PROXY_URL}/qwen-proxy/chat/completions`,
 			method: "POST",
-			header: { "Content-Type": "application/json" },
+			header: {
+				"Content-Type": "application/json",
+				...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+			},
 			data: {
 				model: MODEL,
 				messages: [{ role: "system", content: systemPrompt }, ...history],

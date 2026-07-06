@@ -13,6 +13,8 @@ dist
 *.local
 .env
 .claude/settings.local.json
+.claude/CLAUDE.md
+临时/
 
 # Editor directories and files
 .idea

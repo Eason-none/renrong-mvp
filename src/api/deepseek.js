@@ -4,6 +4,9 @@
 
 const PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "http://localhost:5555"
 const MODEL = import.meta.env.VITE_DEEPSEEK_MODEL
+// Supabase部署的代理前面挡着一层网关，没有Authorization头会被网关本身拒绝（跟DeepSeek真实key无关）；
+// anon key是设计给客户端公开持有的值，只用来敲开网关，代理内部会覆盖成真正的DeepSeek key再转发。
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 function buildSummaryPrompt({ contentTitle, instructions, conversation }) {
 	const conversationText = conversation.messages
@@ -36,7 +39,10 @@ export function generateSummaryText({ contentTitle, instructions, conversation }
 		uni.request({
 			url: `${PROXY_URL}/deepseek-proxy/chat/completions`,
 			method: "POST",
-			header: { "Content-Type": "application/json" },
+			header: {
+				"Content-Type": "application/json",
+				...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+			},
 			data: {
 				model: MODEL,
 				messages: [{ role: "user", content: buildSummaryPrompt({ contentTitle, instructions, conversation }) }],

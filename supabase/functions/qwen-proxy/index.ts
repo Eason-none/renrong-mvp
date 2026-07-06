@@ -24,10 +24,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 		return new Response(null, { status: 204, headers: CORS_HEADERS })
 	}
 
-	// Supabase把请求打到本函数时，路径形如 /functions/v1/qwen-proxy/chat/completions；
-	// 剥掉函数名前缀，剩下的部分原样拼到真实上游base url后面。
+	// 实测确认：Supabase传给函数的req.url路径是/qwen-proxy/chat/completions
+	// （不带/functions/v1/这段平台路由前缀），剥掉函数名前缀，剩下的部分原样拼到真实上游base url后面。
 	const url = new URL(req.url)
-	const prefix = `/functions/v1/${FUNCTION_NAME}`
+	const prefix = `/${FUNCTION_NAME}`
 	const upstreamPath = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : url.pathname
 	const upstreamUrl = `${baseUrl}${upstreamPath}${url.search}`
 
