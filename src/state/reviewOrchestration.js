@@ -1,7 +1,7 @@
-﻿// 归档时序与回顾触发编排（spec_v1.md §2.4、§3.5 AC1）
-// 交接文档标注："最容易被悄悄破坏的一条逻辑"——图鉴100%时必须先用"已归档对话产生的摘要"
-// 生成首次回顾快照，再把当时仍未归档的对话统一被动归档；顺序不能反，否则被动归档刚好补全的
-// 摘要会错误混进首次回顾素材，破坏"快照定格"语义（生成的回顾内容理应可复现）。
+// 回顾编排：快照在用户首次点开回顾时惰性生成（defer-review-to-first-view 变更，
+// 取代旧"100%瞬间先快照后归档"时序）。素材 = 点开时刻该图鉴全部已归档对话的摘要——
+// 先被动归档、再收集、再生成，让最后一条目完成后的聊聊也能进入回顾。
+// "可复现/定格"语义由棘轮承载：快照一经落盘永不重生成，与在哪个瞬间生成无关。
 
 import { get, set, KEYS } from "./storage.js";
 import { getCollectionState, markReviewTriggered } from "./collectionMachine.js";
@@ -16,11 +16,10 @@ function getCollectionItemEvents(collectionId) {
 	return events.filter((e) => e.content_type === "collection_item" && e.collection_id === collectionId);
 }
 
-// 步骤1的输入素材：AC1要求"仅来自已归档对话"产生的 CompletionSummary。
+// 素材收集：只取"已归档对话"产生的 CompletionSummary。
 // 不依赖"CompletionSummary只可能在archiveConversation()里创建"这条跨模块隐式假设——
-// 万一未来出现别的写入路径（数据修复脚本等），那条假设会静默失效。这里改成显式核对
-// 来源Conversation确实archived===true，让这条AC1最核心的不变量自证，而不是依赖注释里的约定
-// （doubt-driven复核发现：原实现只是推断"存在的summary=已归档的"，没有真正校验）。
+// 万一未来出现别的写入路径（数据修复脚本等），那条假设会静默失效。这里显式核对
+// 来源Conversation确实archived===true，让"素材仅来自已归档对话"这条不变量自证。
 // 用 (content_id, completed_at) 这对组合键匹配到具体是哪条CompletionEvent——这是entity定义里
 // "completed_at用于排序/匹配"的字面用法；该组合键理论上在"同一内容毫秒级内被重复完成两次"时
 // 可能误判，但这需要远超人类点击节奏的操作频率才会触发，按可接受风险记录，不在本任务内改entity设计。
@@ -52,7 +51,7 @@ function findExistingFirstReviewSnapshot(collectionId) {
 	return snapshots.find((s) => s.collection_id === collectionId && s.sequence === 1);
 }
 
-// 纯查询，供Task22图鉴卡片角标判断"回顾已生成"还是"还在生成中"——不参与编排逻辑本身。
+// 纯查询，供回顾视图/全部回顾列表读取——不参与编排逻辑本身。
 export function getReviewSnapshots(collectionId) {
 	return get(KEYS.REVIEW_SNAPSHOTS, [])
 		.filter((s) => s.collection_id === collectionId)
@@ -60,8 +59,8 @@ export function getReviewSnapshots(collectionId) {
 }
 
 // 同一 collectionId 的编排正在进行中时阻止重入——generateReviewText/archiveConversation 都是
-// 跨越 await 的异步调用，如果调用方（UI层）不小心重复触发本函数（比如重复点击/重复的状态变更
-// 事件），两次调用会在第一次还没把棘轮置true之前都通过"未触发过"的检查，进而各自生成一份
+// 跨越 await 的异步调用，如果调用方（UI层）不小心重复触发本函数（比如重复点开回顾/重复的状态
+// 变更事件），两次调用会在第一次还没把棘轮置true之前都通过"未触发过"的检查，进而各自生成一份
 // sequence=1 快照——这是纯内存锁，不持久化，App重启即释放。
 // 局限（doubt-driven复核发现，记录为可接受的范围限制，不修复）：这把锁只防得住"同一进程内"的
 // 并发重入，防不住多个浏览器标签页/小程序多实例同时操作同一份storage的极端场景——
@@ -69,30 +68,24 @@ export function getReviewSnapshots(collectionId) {
 // 为此做跨进程锁（比如把"进行中"标记也写进storage）属于当前阶段的过度设计。
 const pendingCollectionIds = new Set();
 
-// AC1 + §2.4：图鉴100%触发后的编排，三步顺序不能反：
-//   1) 先用当前已归档对话产生的 CompletionSummary 生成 ReviewSnapshot(sequence=1)——
-//      素材必须在调用生成函数之前就快照固定，不能等 await 回来后再重新计算。
-//   2) 生成完成后，才把"进入本函数那一刻定格的未归档名单"统一被动归档（名单必须在
-//      任何await之前同步收集，否则会把回顾生成期间用户新开的对话误伤进来，见函数内注释）。
-//      这里用顺序await而非Promise.all：并发跑会让多个archiveConversation调用都基于同一份旧的
-//      CONVERSATIONS数组快照去读写，后写的会覆盖丢失先写的归档结果（doubt-driven复核提醒的
-//      lost-update风险）——顺序执行是有意的设计决策，不是疏漏。
-//   3) triggered_review_at_100pct 置 true（棘轮，由 collectionMachine.markReviewTriggered 负责不可逆）。
+// 首次点开回顾时调用（ReviewView）。四步顺序：
+//   1) 名单入口定格：同步收集该图鉴当前未归档对话（沿用2026-07-06竞态修复的教训——
+//      生成期间用户若返回图鉴另开对话，新对话不在名单里，不被归档、不进本次素材，留待自然归档）。
+//   2) 先被动归档名单里的对话：让它们的摘要进入素材（含最后一条目完成后的聊聊——
+//      本变更存在的理由）。顺序await而非Promise.all：并发跑会让多个archiveConversation调用
+//      都基于同一份旧的CONVERSATIONS数组快照去读写，后写的覆盖丢失先写的归档结果（lost-update）。
+//   3) 收集全部已归档摘要 → 生成回顾叙事 → 快照落盘。
+//   4) triggered_review_at_100pct 置 true（棘轮，由 collectionMachine.markReviewTriggered 负责不可逆）。
 //
-// 步骤1的快照写入和步骤3的棘轮置true是两次独立的、可能被中途打断的操作（网络失败/异常退出）。
-// 为了让"中途失败后重试"不会重复生成第二份 sequence=1 快照，重试时先检查是否已存在
-// 一份 sequence=1 快照，存在则跳过生成、直接续做步骤2/3——整个函数对"步骤1之后任意时刻被打断"
-// 都是可安全重试的（步骤2本身也是幂等的，archiveConversation对已归档对话是no-op）。
-// 调用契约（留给Task17+ UI实现时注意）：本函数抛出异常后不会自动重试——如果失败发生在步骤2/3，
-// 图鉴会卡在"快照已生成但棘轮未置true"的中间态，调用方必须用level-triggered的方式
-// （比如每次App启动时检查所有 status===completed && !triggered_review_at_100pct 的图鉴）
-// 重新调用本函数，而不能只在"刚好跨越100%那一刻"调用一次就不管了。
+// 失败语义：任一步骤抛出则整体失败——快照不落盘、棘轮不置位；已成功的单条归档保留
+// （archiveConversation幂等no-op，重试不产生重复摘要）。重试方式就是用户下次再点开回顾，
+// 不需要任何后台补偿任务。若storage里已存在sequence=1快照（含旧时序遗留的数据），
+// 跳过生成，只补做归档+棘轮，快照内容永不改写。
 //
-// generateReviewText(collectionId, summaries) -> Promise<string>：Task14 的 src/api/review.js 提供真实实现，
-// 且必须把传入的summaries参数当作素材的唯一来源——不能在内部又回头查storage实时读取，
-// 否则会把"素材必须在被动归档之前快照固定"这条本文件存在的意义绕过去。
-// generateSummaryText(conversation) -> Promise<string>：传给步骤2里调用的 conversation.archiveConversation。
-export async function triggerReviewOnCompletion(collectionId, generateReviewText, generateSummaryText) {
+// generateReviewText(collectionId, summaries) -> Promise<string>：src/api/review.js 提供真实实现，
+// 必须把传入的summaries参数当作素材的唯一来源——不能在内部又回头查storage实时读取。
+// generateSummaryText(conversation) -> Promise<string>：传给被动归档调用的 conversation.archiveConversation。
+export async function ensureFirstReviewSnapshot(collectionId, generateReviewText, generateSummaryText) {
 	const state = getCollectionState(collectionId);
 	if (state.status !== "completed" || state.triggered_review_at_100pct) {
 		return null;
@@ -103,15 +96,14 @@ export async function triggerReviewOnCompletion(collectionId, generateReviewText
 
 	pendingCollectionIds.add(collectionId);
 	try {
-		// 被动归档名单在进入编排的这一刻同步定格，不能等步骤1的await回来后再收集：
-		// 回顾生成要好几秒，期间用户很可能正对最后完成的那个条目点"聊聊"新建对话——
-		// 晚收集会把这个正在进行的对话扫进被动归档，用户下一条消息就撞上assertNotArchived
-		// 发不出去（真机验收实际踩到的bug）。§6.5.3的语义本来就是"触发那一刻仍未归档的对话"。
-		// 归档动作本身仍在步骤1之后执行，素材快照的时序约束不受影响；名单里若有对话
-		// 期间被用户主动"说完了"归档，archiveConversation幂等no-op天然跳过。
 		const unarchivedConversations = getUnarchivedConversationsForCollection(collectionId);
+
 		let reviewSnapshot = findExistingFirstReviewSnapshot(collectionId);
 		if (!reviewSnapshot) {
+			// 先归档再收集：归档失败会在快照落盘之前抛出，不留半成品
+			for (const conv of unarchivedConversations) {
+				await archiveConversation(conv.id, generateSummaryText);
+			}
 			const summariesSnapshot = gatherExistingSummaries(collectionId);
 			const reviewText = await generateReviewText(collectionId, summariesSnapshot);
 
@@ -126,10 +118,11 @@ export async function triggerReviewOnCompletion(collectionId, generateReviewText
 			const reviewSnapshots = get(KEYS.REVIEW_SNAPSHOTS, []);
 			reviewSnapshots.push(reviewSnapshot);
 			set(KEYS.REVIEW_SNAPSHOTS, reviewSnapshots);
-		}
-
-		for (const conv of unarchivedConversations) {
-			await archiveConversation(conv.id, generateSummaryText);
+		} else {
+			// 快照已存在（上次在步骤4前被打断，或旧时序遗留）：只补做归档+棘轮，不改写快照
+			for (const conv of unarchivedConversations) {
+				await archiveConversation(conv.id, generateSummaryText);
+			}
 		}
 
 		// 走到这里时按本函数开头的校验，markReviewTriggered理论上不可能返回false——
@@ -137,7 +130,7 @@ export async function triggerReviewOnCompletion(collectionId, generateReviewText
 		// 跨进程竞态），不检查返回值会让"快照已生成但棘轮没置true"这种不一致态完全没有信号。
 		const triggered = markReviewTriggered(collectionId);
 		if (!triggered) {
-			throw new Error(`triggerReviewOnCompletion: markReviewTriggered未成功置位（collection ${collectionId}），但前面的快照/归档步骤已经执行——出现了不应该出现的状态不一致`);
+			throw new Error(`ensureFirstReviewSnapshot: markReviewTriggered未成功置位（collection ${collectionId}），但前面的快照/归档步骤已经执行——出现了不应该出现的状态不一致`);
 		}
 		return reviewSnapshot;
 	} finally {

@@ -21,7 +21,7 @@
           class="collection-grid__status collection-grid__status--done"
           @tap.stop="$emit('reviewTap', entry.collection.id)"
         >
-          {{ entry.hasReview ? '✦ 已点亮  回顾 →' : '✦ 已点亮' }}
+          ✦ 已点亮  回顾 →
         </view>
         <view v-else-if="entry.state.status === 'active'" class="collection-grid__status collection-grid__status--active">进行中</view>
         <view v-else class="collection-grid__status">未激活</view>
@@ -33,15 +33,15 @@
 <script>
 import { getAllCollections } from '@/content/library.js'
 import { getCollectionState } from '@/state/collectionMachine.js'
-import { getReviewSnapshots } from '@/state/reviewOrchestration.js'
 
 const TYPE_LABELS = { perception: '感知', event: '事件' }
 
+// defer-review-to-first-view：completed 即有回顾入口（快照在首次点开时才生成），
+// 卡片不再需要区分"快照是否已存在"。
 function loadCollections() {
   return getAllCollections().map((collection) => ({
     collection,
     state: getCollectionState(collection.id),
-    hasReview: getReviewSnapshots(collection.id).length > 0,
   }))
 }
 

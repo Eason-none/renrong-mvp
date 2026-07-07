@@ -6,7 +6,7 @@
     </view>
     <view class="review-view__title">{{ collection.name }}的回顾</view>
 
-    <view v-if="snapshots.length === 0" class="review-view__loading">{{ loadingText }}</view>
+    <view v-if="snapshots.length === 0" class="review-view__loading">{{ failed ? failedText : loadingText }}</view>
 
     <view v-else class="review-view__list">
       <view v-for="snapshot in snapshots" :key="snapshot.id" class="review-view__entry">
@@ -17,12 +17,29 @@
 </template>
 
 <script>
-import { getCollectionById } from '@/content/library.js'
-import { getReviewSnapshots } from '@/state/reviewOrchestration.js'
+import { getCollectionById, getCollectionItemById } from '@/content/library.js'
+import { getReviewSnapshots, ensureFirstReviewSnapshot } from '@/state/reviewOrchestration.js'
+import { getCompletionEvent } from '@/state/completionEvent.js'
+import { generateReviewText } from '@/api/review.js'
+import { generateSummaryText } from '@/api/deepseek.js'
 
 // product_handoff.md §5.4.1 定稿措辞：点进提示但回顾还在生成中时，用邀请式加载文案，
 // 不用系统进度提示的语气。
 const LOADING_TEXT = '一起回顾你为生活带来的新内容吧'
+// 生成失败（多半是网络）：不出现技术字样，重试方式就是再进来一次，语气只负责把门留着。
+const FAILED_TEXT = '回顾还在路上，这次没能取回来。过一会儿再进来看看就好。'
+
+// 被动归档的摘要函数：从对话反查它对应的完成事件与图鉴条目，取该条目自己的标题/做法
+//（旧实现统一用触发时"最后一条"的标题喂所有被动归档的对话，摘要素材是错位的）。
+function summaryFnForConversation(conv) {
+  const event = getCompletionEvent(conv.completion_event_id)
+  const item = event ? getCollectionItemById(event.content_id) : null
+  return generateSummaryText({
+    contentTitle: item ? item.title : '',
+    instructions: item ? item.instructions : '',
+    conversation: conv,
+  })
+}
 
 export default {
   name: 'ReviewView',
@@ -35,7 +52,28 @@ export default {
       collection: getCollectionById(this.collectionId),
       snapshots: getReviewSnapshots(this.collectionId),
       loadingText: LOADING_TEXT,
+      failedText: FAILED_TEXT,
+      failed: false,
     }
+  },
+  created() {
+    // defer-review-to-first-view：快照在首次点开时才生成，最后一条目的聊聊因此来得及
+    // 进入素材。失败不落半成品，下次进来这段逻辑自然重试——不需要任何后台补偿。
+    if (this.snapshots.length === 0) {
+      this.generate()
+    }
+  },
+  methods: {
+    async generate() {
+      this.failed = false
+      try {
+        await ensureFirstReviewSnapshot(this.collectionId, generateReviewText, summaryFnForConversation)
+        this.snapshots = getReviewSnapshots(this.collectionId)
+      } catch (err) {
+        console.error('ensureFirstReviewSnapshot failed:', err)
+        this.failed = true
+      }
+    },
   },
 }
 </script>

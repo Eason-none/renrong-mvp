@@ -62,12 +62,9 @@
 
 <script>
 import { getCollectionById } from '@/content/library.js'
-import { getCollectionState } from '@/state/collectionMachine.js'
 import { createCompletionEvent, COMPLETION_INVITE_TEXT } from '@/state/completionEvent.js'
 import { get, KEYS } from '@/state/storage.js'
 import { createConversation, getLatestSummaryForContent, getConversationByCompletionEventId, archiveConversation } from '@/state/conversation.js'
-import { triggerReviewOnCompletion } from '@/state/reviewOrchestration.js'
-import { generateReviewText } from '@/api/review.js'
 import { generateSummaryText } from '@/api/deepseek.js'
 import ChatView from '@/components/ChatView.vue'
 
@@ -156,19 +153,8 @@ export default {
       // 记下事件id：若这条随后跳过了聊聊，之后仍能凭它补聊（不新建完成事件）
       this.itemEventMap = { ...this.itemEventMap, [this.selectedItem.id]: this.completionEventId }
 
-      // §2.4/Task10：图鉴100%时静默触发回顾生成，不打断当下"做完啦→可选聊聊"的轻量流程——
-      // 不await、不阻塞UI；失败时只记录，不影响用户继续聊聊/跳过（调用契约见reviewOrchestration.js
-      // 顶部注释：失败后处于"快照已生成但棘轮未置true"的中间态需要level-triggered重试，
-      // MVP阶段暂不补这个重试入口，下次该图鉴产生新的completion事件时本函数会被重新调用一次，
-      // 那次调用前置校验仍是"completed && !triggered"，所以重试天然会发生，只是不是立即发生）。
-      if (getCollectionState(this.collectionId).status === 'completed') {
-        triggerReviewOnCompletion(this.collectionId, generateReviewText, (conv) =>
-          generateSummaryText({ contentTitle: this.selectedItem.title, instructions: this.selectedItem.instructions, conversation: conv })
-        ).catch((err) => {
-          console.error('triggerReviewOnCompletion failed', err)
-        })
-      }
-
+      // 回顾不在这里触发（defer-review-to-first-view）：快照在用户首次点开回顾时
+      // 由 ReviewView 惰性生成，这样最后这条的聊聊也来得及进入素材。这里只需通知刷新。
       this.$emit('changed')
       this.step = 'invite'
     },
