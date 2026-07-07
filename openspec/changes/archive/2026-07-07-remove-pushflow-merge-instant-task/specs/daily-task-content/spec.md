@@ -1,3 +1,7 @@
+## RENAMED Requirements
+- FROM: `### Requirement: 每日任务内容池与推送层/图鉴层完全独立`
+- TO: `### Requirement: 每日任务内容池与图鉴层完全独立`
+
 ## MODIFIED Requirements
 
 ### Requirement: 每日任务内容池与图鉴层完全独立
