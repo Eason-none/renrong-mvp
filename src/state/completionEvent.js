@@ -6,7 +6,6 @@
 // 不需要额外的"跳过"分支。
 
 import { get, set, KEYS } from "./storage.js";
-import { markPushDone } from "./pushPool.js";
 import { getCollectionState, recordCollectionItemCompletion } from "./collectionMachine.js";
 
 // product_handoff.md §6.5.1 定稿文案：全产品统一一句，不分内容类型。
@@ -16,6 +15,8 @@ function generateId() {
 	return `ce_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// "push" 保留在白名单里只为历史事件的读取/反查兼容（remove-pushflow 变更后
+// 推送层已删除，代码里不再有任何创建 push 类型事件的入口）。
 const VALID_CONTENT_TYPES = ["push", "collection_item", "daily_task"];
 
 // AC1：立即创建CompletionEvent，无需任何验证/评分，且不依赖是否随后聊天。
@@ -46,10 +47,9 @@ export function createCompletionEvent({ contentId, contentType, collectionId }) 
 	events.push(event);
 	set(KEYS.COMPLETION_EVENTS, events);
 
-	// daily_task 完成不驱动推送去重池或图鉴状态机——独立轨道，无联动。
-	if (contentType === "push") {
-		markPushDone(contentId);
-	} else if (contentType === "collection_item") {
+	// daily_task 完成不驱动图鉴状态机——独立轨道，无联动。
+	// （push 类型的 GlobalDoneSet 副作用已随推送层删除；历史 push 事件只读不再产生。）
+	if (contentType === "collection_item") {
 		recordCollectionItemCompletion(collectionId);
 	}
 

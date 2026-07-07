@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 主页提供"现在就来一件"即时入口
-主页在呼吸引导完成后的常规布局中 SHALL 提供"现在就来一件"入口，与"今日任务候选"入口并列常驻。点击后 SHALL 按用户 `BasicInfo.scene_tags` 从每日任务池抽取 1 条，直接以任务详情卡形态全屏展示（title / time / instructions），无任何中间选择步骤。
+主页在呼吸引导完成后的常规布局中 SHALL 提供"现在就来一件"入口，与"今日任务候选"入口并列常驻；布局顶部 SHALL 显示标题「让我们做点什么有意思的小事」与副标题「希望你好好生活，别太焦虑」。点击入口后 SHALL 按用户 `BasicInfo.scene_tags` 从每日任务池抽取 1 条，直接以任务详情卡形态展示（title / time / instructions），无任何中间选择步骤。
 
 #### Scenario: 零决策抽取
 - **WHEN** 用户点击"现在就来一件"
@@ -12,11 +12,15 @@
 - **THEN** 页面上不存在"想在哪儿做"场景选择界面及旧版推送卡片流程（PushFlow）
 
 ### Requirement: 即时任务抽取规则
-抽取 SHALL 复用每日任务候选逻辑：与用户 scene_tags 有任意标签交集的条目中随机取 1 条，排除已在 DailyTaskPool 中的和今日已完成的条目；交集为空或不足时用 `general` 条目补足。抽取结果 SHALL NOT 提供"换一个"刷新按钮。
+抽取 SHALL 复用每日任务候选逻辑：与用户 scene_tags 有任意标签交集的条目中随机取 1 条，排除已在 DailyTaskPool 中的和今日已完成的条目；交集为空或不足时用 `general` 条目补足。任务卡 SHALL 提供"换一个"：同一次进入最多可换 3 次（换取时排除当前展示条目），第 4 次点击 SHALL NOT 再更换，并显示小字「如果没有想做的可以深呼吸，喝点水，发发呆」。
 
 #### Scenario: 正常抽取
 - **WHEN** 用户 scene_tags 匹配到若干未领取、未完成的条目
 - **THEN** 随机展示其中 1 条
+
+#### Scenario: 换一个达到上限
+- **WHEN** 用户已连续换过 3 次，再次点击"换一个"
+- **THEN** 卡片内容不变，出现上述关怀小字，按钮呈不可用样式
 
 #### Scenario: 池耗尽降级
 - **WHEN** 匹配条目与 general 补足后仍为空（全部已领取或已完成）

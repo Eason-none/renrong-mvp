@@ -3,16 +3,22 @@
     <NavBar />
     <BreathingGuide v-if="!breathingDone" @done="onBreathingDone" />
     <template v-else>
-      <!-- 主流程：PushFlow -->
-      <PushFlow v-if="!dailyTaskStep" />
+      <!-- 主区域（remove-pushflow：场景三选已移除，场景信息来自档案 scene_tags） -->
+      <template v-if="!dailyTaskStep && !instantStep">
+        <view class="home-header">
+          <view class="home-header__title">让我们做点什么有意思的小事</view>
+          <view class="home-header__subtitle">希望你好好生活，别太焦虑</view>
+        </view>
 
-      <!-- 每日任务入口（常驻，可随时重新打开日推卡片） -->
-      <view v-if="!dailyTaskStep" class="daily-card-entry" @tap="reopenDailyCard">
-        今日任务候选
-      </view>
+        <!-- 即时入口：零决策抽一条，承接旧推送层"焦虑那一刻立刻做一件小事"的职责 -->
+        <view class="instant-entry" @tap="startInstant">现在就来一件</view>
 
-      <!-- 已领取任务区块：仅 dailyTaskStep 为 null 时展示 -->
-      <view v-if="!dailyTaskStep && myTasks.length" class="daily-tasks-block">
+        <!-- 每日任务入口（常驻，可随时重新打开日推卡片） -->
+        <view class="daily-card-entry" @tap="reopenDailyCard">今日任务候选</view>
+      </template>
+
+      <!-- 已领取任务区块 -->
+      <view v-if="!dailyTaskStep && !instantStep && myTasks.length" class="daily-tasks-block">
         <view class="daily-tasks-block__title">我的日常任务</view>
         <DailyTaskItem
           v-for="task in myTasks"
@@ -23,7 +29,7 @@
       </view>
 
       <!-- 今日已完成区块 -->
-      <view v-if="!dailyTaskStep && todayCompleted.length" class="daily-tasks-block">
+      <view v-if="!dailyTaskStep && !instantStep && todayCompleted.length" class="daily-tasks-block">
         <view class="daily-tasks-block__title">今日已完成</view>
         <view
           v-for="task in todayCompleted"
@@ -65,6 +71,50 @@
         :previous-summary="null"
         @close="exitDailyTask"
       />
+
+      <!-- 现在就来一件：任务卡 -->
+      <view v-if="instantStep === 'card'" class="push-flow">
+        <view v-if="instantTask" class="push-flow__card">
+          <view class="push-flow__card-title">{{ instantTask.title }}</view>
+          <view class="push-flow__card-time">{{ instantTask.time }}</view>
+          <view class="push-flow__card-instructions">{{ instantTask.instructions }}</view>
+        </view>
+        <view v-else class="push-flow__card-empty">今天的都做过了，歇一歇也很好。</view>
+
+        <view class="push-flow__hint" v-if="instantExhausted">如果没有想做的可以深呼吸，喝点水，发发呆</view>
+
+        <view class="push-flow__actions" v-if="instantTask">
+          <view
+            class="push-flow__btn"
+            :class="{ 'push-flow__btn--disabled': instantExhausted }"
+            @tap="refreshInstant"
+          >
+            换一个
+          </view>
+        </view>
+
+        <view v-if="instantTask" class="push-flow__done-btn" @tap="markInstantDone">做完啦</view>
+        <view class="push-flow__back-link" @tap="exitInstant">← 返回</view>
+      </view>
+
+      <!-- 现在就来一件：聊聊邀请 -->
+      <view v-if="instantStep === 'invite'" class="push-flow">
+        <view class="push-flow__invite-text">{{ inviteText }}</view>
+        <view class="push-flow__actions">
+          <view class="push-flow__btn push-flow__btn--primary" @tap="startInstantChat">聊聊</view>
+          <view class="push-flow__btn" @tap="exitInstant">跳过</view>
+        </view>
+      </view>
+
+      <!-- 现在就来一件：聊天（推送层语义：退出不生成摘要） -->
+      <ChatView
+        v-if="instantStep === 'chat'"
+        :conversation-id="instantConversationId"
+        :content-title="instantTask.title"
+        :instructions="instantTask.instructions"
+        :previous-summary="null"
+        @close="exitInstant"
+      />
     </template>
 
     <!-- 日推卡片（全屏遮罩，overlay 所有内容） -->
@@ -100,7 +150,6 @@
 <script>
 import NavBar from '@/components/NavBar.vue'
 import BreathingGuide from '@/components/BreathingGuide.vue'
-import PushFlow from '@/components/PushFlow.vue'
 import DailyCard from '@/components/DailyCard.vue'
 import DailyTaskItem from '@/components/DailyTaskItem.vue'
 import ChatView from '@/components/ChatView.vue'
@@ -121,7 +170,7 @@ function getTodayDateStr() {
 
 export default {
   name: 'IndexPage',
-  components: { NavBar, BreathingGuide, PushFlow, DailyCard, DailyTaskItem, ChatView, BasicInfoSettings },
+  components: { NavBar, BreathingGuide, DailyCard, DailyTaskItem, ChatView, BasicInfoSettings },
   data() {
     return {
       breathingDone: false,
@@ -147,6 +196,13 @@ export default {
       dailyTaskCompletionEventId: null,
       dailyTaskConversationId: null,
       inviteText: COMPLETION_INVITE_TEXT,
+      // 现在就来一件（instant-task）：零决策即时抽取流程
+      instantStep: null, // null | 'card' | 'invite' | 'chat'
+      instantTask: null,
+      instantRefreshCount: 0,
+      instantExhausted: false,
+      instantCompletionEventId: null,
+      instantConversationId: null,
       // 从日推卡片跳转的基本信息设置
       showBasicInfoOverlay: false,
     }
@@ -288,6 +344,57 @@ export default {
       this.refreshMyTasks()
       this.exitDailyTask()
     },
+    // 现在就来一件：按档案 scene_tags 零决策抽一条，排除已领取和今日已完成的
+    pickInstantTask(extraExcludeId) {
+      const excludeIds = [
+        ...getUncompletedTasks().map((t) => t.id),
+        ...getTodayCompleted().map((t) => t.id),
+      ]
+      if (extraExcludeId) excludeIds.push(extraExcludeId)
+      const candidates = getDailyTaskCandidates(getBasicInfo().scene_tags || [], excludeIds)
+      return candidates.length ? candidates[0] : null
+    },
+    startInstant() {
+      this.instantRefreshCount = 0
+      this.instantExhausted = false
+      this.instantTask = this.pickInstantTask()
+      this.instantStep = 'card'
+    },
+    // "换一个"最多3次；第4次点击不再换，露出关怀小字——沿用旧推送层"把限制说成关心"的立场
+    refreshInstant() {
+      if (!this.instantTask || this.instantExhausted) return
+      if (this.instantRefreshCount >= 3) {
+        this.instantExhausted = true
+        return
+      }
+      this.instantRefreshCount += 1
+      this.instantTask = this.pickInstantTask(this.instantTask.id) ?? this.instantTask
+    },
+    // 无"领取"概念：做完啦直接计入今日已完成（不经过 DailyTaskPool）
+    markInstantDone() {
+      const event = createCompletionEvent({
+        contentId: this.instantTask.id,
+        contentType: 'daily_task',
+        collectionId: null,
+      })
+      this.instantCompletionEventId = event.id
+      saveCompletedTask(this.instantTask, event.id)
+      this.refreshCompleted()
+      this.instantStep = 'invite'
+    },
+    startInstantChat() {
+      const conv = createConversation(this.instantCompletionEventId)
+      this.instantConversationId = conv.id
+      this.instantStep = 'chat'
+    },
+    exitInstant() {
+      this.instantStep = null
+      this.instantTask = null
+      this.instantRefreshCount = 0
+      this.instantExhausted = false
+      this.instantCompletionEventId = null
+      this.instantConversationId = null
+    },
     exitDailyTask() {
       this.dailyTaskStep = null
       this.activeTask = null
@@ -317,6 +424,56 @@ export default {
   color: var(--c-subtle);
   letter-spacing: 0.08em;
   margin-bottom: 16rpx;
+}
+
+.home-header {
+  text-align: center;
+  padding: 0 60rpx;
+}
+
+.home-header__title {
+  font-size: 34rpx;
+  color: var(--c-ink);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.home-header__subtitle {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: var(--c-subtle);
+}
+
+.instant-entry {
+  margin-top: 56rpx;
+  width: calc(100% - 120rpx);
+  padding: 28rpx 0;
+  text-align: center;
+  font-size: 30rpx;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--c-ink);
+  border-radius: 999rpx;
+}
+
+.push-flow__card-empty {
+  padding: 60rpx 20rpx;
+  font-size: 28rpx;
+  color: var(--c-subtle);
+  text-align: center;
+  line-height: 1.85;
+}
+
+.push-flow__hint {
+  margin-top: 24rpx;
+  font-size: 24rpx;
+  color: var(--c-subtle);
+  text-align: center;
+  line-height: 1.75;
+}
+
+.push-flow__btn--disabled {
+  opacity: 0.4;
 }
 
 .daily-card-entry {

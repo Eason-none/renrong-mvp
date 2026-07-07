@@ -1,7 +1,9 @@
-// Task 4 轻量运行时断言脚本：核对内容库数量与已知条目id，校验 getPushPool(scene) 过滤逻辑。
+// 内容库轻量运行时断言脚本：核对图鉴与每日任务池数量、id 唯一性、scene_tags 合法性。
+// （remove-pushflow 变更后推送层已删除，原 38 条并入每日任务池，共 77 条。）
 // 单文件直接跑：node scripts/verify-library.mjs
 
 import * as library from "../src/content/library.js";
+import dailyTasks from "../src/content/daily_tasks.json" with { type: "json" };
 
 let failed = false;
 
@@ -23,10 +25,18 @@ function assertTrue(condition, label) {
 	}
 }
 
-// 1. 推送层：38条，id 全部唯一
-const pushContent = library.getAllPushContent();
-assertEqual(pushContent.length, 38, "推送层共38条");
-assertEqual(new Set(pushContent.map((i) => i.id)).size, 38, "推送层id全部唯一");
+// 1. 每日任务池：77条（原生39 + 并入的原推送层38），id 唯一，scene_tags 全部合法
+const VALID_TAGS = ["workspace", "classroom", "home", "transit", "walking", "driving", "convenience-store", "canteen", "gym", "market", "general"];
+assertEqual(dailyTasks.length, 77, "每日任务池共77条");
+assertEqual(new Set(dailyTasks.map((t) => t.id)).size, 77, "每日任务池id全部唯一");
+assertTrue(
+	dailyTasks.every((t) => Array.isArray(t.scene_tags) && t.scene_tags.length > 0 && t.scene_tags.every((tag) => VALID_TAGS.includes(tag))),
+	"每条任务的scene_tags非空且全部来自11维集合"
+);
+assertTrue(
+	dailyTasks.every((t) => t.id && t.title && t.hook && t.time && t.instructions),
+	"每条任务的必填字段（id/title/hook/time/instructions）齐全"
+);
 
 // 2. 图鉴：11个已建图鉴（2026-07-06同步：感知5本+事件6本，共80条），条目数与已知齐全
 const collections = library.getAllCollections();
@@ -53,21 +63,22 @@ for (const [id, expected] of Object.entries(expectedCollections)) {
 }
 
 // 3. 已知条目id可查
-assertTrue(!!library.getPushContentById("push_001"), "push_001 可查到");
+assertTrue(!!library.getDailyTaskById("push_001"), "并入的原推送层条目 push_001 可在每日任务池查到（历史事件标题反查依赖）");
+assertTrue(!!library.getDailyTaskById("dt-002"), "原生每日任务 dt-002 可查到");
 assertTrue(!!library.getCollectionItemById("color_001"), "color_001 可查到");
 assertEqual(library.getCollectionItemById("nonexistent_id"), undefined, "查不存在的条目id返回undefined");
 
-// 4. getPushPool(scene) 按scene正确过滤（spec §2.3：pool = item where scene ∈ item.scene）
-const indoorShort = library.getPushPool("室内短");
-assertEqual(indoorShort.length, 28, "室内短场景过滤数量正确");
+// 4. getDailyTaskCandidates 按 scene_tags 过滤 + 排除
+const picked = library.getDailyTaskCandidates(["walking"], []);
+assertTrue(picked.length > 0 && picked.length <= 3, "walking标签能抽到1-3条候选");
+const walkingIds = dailyTasks.filter((t) => t.scene_tags.includes("walking")).map((t) => t.id);
+const generalIds = dailyTasks.filter((t) => t.scene_tags.includes("general")).map((t) => t.id);
 assertTrue(
-	indoorShort.every((item) => item.scene.includes("室内短")),
-	"室内短场景过滤结果全部满足 scene 包含该场景"
+	picked.every((t) => walkingIds.includes(t.id) || generalIds.includes(t.id)),
+	"抽到的候选全部来自walking匹配池或general补足池"
 );
-assertTrue(
-	pushContent.filter((item) => !item.scene.includes("室内短")).every((item) => !indoorShort.includes(item)),
-	"室内短场景过滤结果不包含不满足条件的条目"
-);
+const excludeAll = dailyTasks.map((t) => t.id);
+assertEqual(library.getDailyTaskCandidates(["walking"], excludeAll).length, 0, "全部排除时返回空数组（即时抽取空态的依据）");
 
 if (failed) {
 	console.error("\nTask4 library 断言失败");

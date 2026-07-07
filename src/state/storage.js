@@ -8,7 +8,7 @@ export const KEYS = {
 	CONVERSATIONS: "conversations", // Conversation[]
 	COMPLETION_SUMMARIES: "completionSummaries", // CompletionSummary[]
 	REVIEW_SNAPSHOTS: "reviewSnapshots", // ReviewSnapshot[]
-	PUSH_GLOBAL_DONE_SET: "pushGlobalDoneSet", // GlobalDoneSet（spec §2.3），content_id[]，全局不分场景
+	// pushGlobalDoneSet 键已随推送层删除（remove-pushflow）；用户本地残留的旧键无害，不做清理
 	BASIC_INFO: "basicInfo", // BasicInfo: { player_id, birth_date, scene_tags[] }
 	DAILY_TASK_POOL: "dailyTaskPool", // DailyTask[]（已领取未完成的每日任务）
 	DAILY_CARD_SHOWN_DATE: "dailyCardShownDate", // YYYY-MM-DD，防止同天重复弹出日推卡片

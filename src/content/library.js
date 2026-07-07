@@ -1,21 +1,15 @@
-// 内容库加载与查询（spec_v1.md §2.1, §2.3, §3.1）
-// 数据源：项目根目录的 content_library_draft_v1.json（运营产出的权威内容库草稿）。
-// 这一层只做加载/查询，不做去重/随机/状态机逻辑——那是 Task5 起的状态机层的职责。
+// 内容库加载与查询
+// 数据源：图鉴来自项目根目录 content_library_draft_v1.json（运营产出的权威内容库草稿）；
+// 每日任务池来自 daily_tasks.json（含 remove-pushflow 变更并入的原推送层 38 条，共 77 条）。
+// 这一层只做加载/查询，不做去重/随机/状态机逻辑——那是状态机层的职责。
+// 注意：不再读取 content_library_draft_v1.json 的 push_content 字段（仅作运营历史档案）。
 
 import rawLibrary from "../../content_library_draft_v1.json" with { type: "json" };
 import dailyTasksRaw from "./daily_tasks.json" with { type: "json" };
 
-export function getAllPushContent() {
-	return rawLibrary.push_content;
-}
-
-export function getPushContentById(id) {
-	return rawLibrary.push_content.find((item) => item.id === id);
-}
-
-// spec §2.3 GetPushCandidate: pool = PushContentItem where scene ∈ item.scene
-export function getPushPool(scene) {
-	return rawLibrary.push_content.filter((item) => item.scene.includes(scene));
+// 按 id 反查每日任务条目（含并入的原 push_xxx 条目）——历史 push 完成事件的标题反查也走这里
+export function getDailyTaskById(id) {
+	return dailyTasksRaw.find((t) => t.id === id);
 }
 
 export function getAllCollections() {

@@ -142,7 +142,7 @@ export default {
       this.step = 'card'
     },
     markDone() {
-      // previous_summary要在创建本次CompletionEvent之前取——同PushFlow.vue的既有约定。
+      // previous_summary要在创建本次CompletionEvent之前取——否则查到的是"本次"而不是"上次"。
       this.previousSummary = getLatestSummaryForContent(this.selectedItem.id)?.summary_text ?? null
       this.completionEventId = createCompletionEvent({
         contentId: this.selectedItem.id,

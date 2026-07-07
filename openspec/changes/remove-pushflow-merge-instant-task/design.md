@@ -21,7 +21,7 @@
 1. **内容合并落点：追加进 `src/content/daily_tasks.json`**。它已是每日任务池的运行时数据源，`getDailyTaskCandidates` 直接受益。content_library_draft_v1.json 的 `push_content` 字段保留作运营历史档案，加 `_说明` 标注"已于本变更并入每日任务池，代码不再读取"——不删字段，保留生产过程记录（与 theme_backlog 已产出条目的处理方式一致）。id 无冲突（push_xxx vs dt-xxx 两套前缀）。
 2. **重标签规则**：按 content_principles.md §五 的 11 维定义逐条映射（原"室内短/室内久"多数落到 workspace/classroom/home + general，"室外"落到 walking/transit 等），Claude 初标 + 用户抽查定稿。Gate 0 均已通过，不重审内容本身。
 3. **"现在就来一件"抽取**：复用 `getDailyTaskCandidates(scene_tags, excludeIds)` 取 1 条，excludeIds = 池中已领取 + 今日已完成。展示复用每日任务详情卡（title/time/instructions + 做完啦 + ← 返回），**不出现"领取"概念**——点"做完啦"直接 `createCompletionEvent(daily_task)` + `saveCompletedTask` 进"今日已完成"，跳过领取列表。
-4. **不做"换一个"与刷新上限**：卡片上不提供刷新按钮；用户"返回→再点按钮"天然可以重抽，但这条路径摩擦足够高，不会像顺滑的"换一个"那样滑向内容选择器（v4 设 3 次上限要防的是后者）。该机制对数据/状态无硬性影响，不值得为它做计数器工程（§十"功能服务于什么优先于怎么做"）。
+4. **「换一个」保留、上限 3 次（2026-07-06 用户拍板，覆盖初版"不做刷新"的决策）**：任务卡提供「换一个」，同一次进入最多换 3 次，第 4 次点击不再更换并显示关怀小字「**如果没有想做的可以深呼吸，喝点水，发发呆**」——沿用旧推送层"把限制说成关心"的立场；换一个时排除当前展示条目，避免原地重复。**主区域文案定稿（用户指定）**：标题保留「让我们做点什么有意思的小事」，副标题「**希望你好好生活，别太焦虑**」（取代旧"根据你现在的条件选一个"）。
 5. **completionEvent 兼容**：`VALID_CONTENT_TYPES` 保留 `"push"`（历史事件仍可被读取/反查标题），但删除 `markPushDone` 副作用调用；新代码没有任何产生 push 类型事件的入口。
 6. **历史标题反查兼容**：历史 push 完成事件的 content_id（push_xxx）并入每日池后仍能通过 library 查到条目标题——合并本身就保证了这一点，需在验收里确认历史对话入口不报错。
 7. **storage 键**：`PUSH_GLOBAL_DONE_SET` 从 KEYS 删除；用户本地残留的旧键无害，不做清理。
