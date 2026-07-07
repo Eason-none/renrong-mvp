@@ -5,12 +5,23 @@
       <view class="unlock-modal__intro">{{ collection.intro }}</view>
 
       <template v-if="state.status === 'locked'">
-        <view v-if="atLimit" class="unlock-modal__blocked">进行中的图鉴已有3个，先放下一个再来</view>
+        <view v-if="exampleItem" class="unlock-modal__example">
+          <view class="unlock-modal__example-label">比如</view>
+          <view class="unlock-modal__example-title">{{ exampleItem.title }}</view>
+          <view v-if="exampleItem.hook" class="unlock-modal__example-hook">{{ exampleItem.hook }}</view>
+        </view>
+        <template v-if="atLimit">
+          <view class="unlock-modal__blocked">过多的选择可能分散对过程感受的注意力。你随时可以开启新的图鉴，不过需要先把一个暂时放下。</view>
+          <view v-for="c in activeCollections" :key="c.id" class="unlock-modal__active-row">
+            <view class="unlock-modal__active-name">{{ c.name }}</view>
+            <view class="unlock-modal__btn unlock-modal__btn--small" @tap="putDownFromLimit(c.id)">放下</view>
+          </view>
+        </template>
         <view class="unlock-modal__actions">
           <view v-if="!atLimit" class="unlock-modal__btn unlock-modal__btn--primary" @tap="startExploring">
             开始探索
           </view>
-          <view class="unlock-modal__btn" @tap="$emit('close')">{{ atLimit ? '知道了' : '算了' }}</view>
+          <view class="unlock-modal__btn" @tap="$emit('close')">{{ atLimit ? '再逛逛' : '算了' }}</view>
         </view>
       </template>
 
@@ -32,8 +43,13 @@
 </template>
 
 <script>
-import { getCollectionById } from '@/content/library.js'
-import { getCollectionState, countActiveCollections, activate, putDown } from '@/state/collectionMachine.js'
+import { getCollectionById, getAllCollections } from '@/content/library.js'
+import { getCollectionState, getAllCollectionStates, countActiveCollections, activate, putDown } from '@/state/collectionMachine.js'
+
+function listActiveCollections() {
+  const states = getAllCollectionStates()
+  return getAllCollections().filter((c) => states[c.id]?.status === 'active')
+}
 
 export default {
   name: 'CollectionUnlockModal',
@@ -45,11 +61,18 @@ export default {
     return {
       collection: getCollectionById(this.collectionId),
       state: getCollectionState(this.collectionId),
+      // storage 不是响应式的，激活数/激活列表存成 data，内联"放下"后手动刷新
+      activeCount: countActiveCollections(),
+      activeCollections: listActiveCollections(),
     }
   },
   computed: {
     atLimit() {
-      return countActiveCollections() >= 3
+      return this.activeCount >= 3
+    },
+    // 示例条目取第一条，锁定态预览用；内容库暂未回填 hook 字段，模板里 hook 为空时省略该行
+    exampleItem() {
+      return this.collection.items[0]
     },
   },
   methods: {
@@ -63,6 +86,13 @@ export default {
       putDown(this.collectionId)
       this.$emit('changed')
       this.$emit('close')
+    },
+    // 上限提示内联放下（§5.3）：放下后弹窗保持打开，[开始探索] 原地变可用
+    putDownFromLimit(id) {
+      putDown(id)
+      this.activeCount = countActiveCollections()
+      this.activeCollections = listActiveCollections()
+      this.$emit('changed')
     },
   },
 }
@@ -105,16 +135,61 @@ export default {
   margin-bottom: 32rpx;
 }
 
+.unlock-modal__example {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 24rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 32rpx;
+}
+
+.unlock-modal__example-label {
+  font-size: 22rpx;
+  color: var(--c-subtle);
+  margin-bottom: 8rpx;
+}
+
+.unlock-modal__example-title {
+  font-size: 28rpx;
+  color: var(--c-ink);
+}
+
+.unlock-modal__example-hook {
+  font-size: 24rpx;
+  color: var(--c-muted);
+  line-height: 1.7;
+  margin-top: 8rpx;
+}
+
 .unlock-modal__blocked {
   font-size: 26rpx;
   color: var(--c-subtle);
+  line-height: 1.85;
   margin-bottom: 24rpx;
+}
+
+.unlock-modal__active-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 8rpx;
+  margin-bottom: 8rpx;
+}
+
+.unlock-modal__active-name {
+  font-size: 28rpx;
+  color: var(--c-ink);
+}
+
+.unlock-modal__btn--small {
+  padding: 12rpx 32rpx;
+  font-size: 24rpx;
 }
 
 .unlock-modal__actions {
   display: flex;
   justify-content: center;
   gap: 24rpx;
+  margin-top: 8rpx;
 }
 
 .unlock-modal__btn {

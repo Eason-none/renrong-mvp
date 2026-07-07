@@ -5,6 +5,8 @@
       <view class="chat__title">聊聊</view>
     </view>
 
+    <FirstTimeHint hint-key="chat-done" text="可以和AI聊聊过程中的感受，或想说什么都可以。" />
+
     <scroll-view class="chat__messages" scroll-y scroll-with-animation :scroll-into-view="bottomAnchor">
       <!-- 开场邀请：本地模板、纯UI展示（不入库、不进历史、不参与摘要），提醒用户刚做的是哪条并给出话头 -->
       <view class="chat__bubble chat__bubble--assistant">
@@ -64,9 +66,11 @@
 import { addUserMessage, addAssistantMessage, archiveConversation, getConversation } from '@/state/conversation.js'
 import { buildMainChatSystemPrompt, toApiMessages, streamMainChat } from '@/api/qwen.js'
 import { generateSummaryText } from '@/api/deepseek.js'
+import FirstTimeHint from '@/components/FirstTimeHint.vue'
 
 export default {
   name: 'ChatView',
+  components: { FirstTimeHint },
   props: {
     conversationId: { type: String, required: true },
     contentTitle: { type: String, required: true },

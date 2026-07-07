@@ -13,6 +13,7 @@ export const KEYS = {
 	DAILY_TASK_POOL: "dailyTaskPool", // DailyTask[]（已领取未完成的每日任务）
 	DAILY_CARD_SHOWN_DATE: "dailyCardShownDate", // YYYY-MM-DD，防止同天重复弹出日推卡片
 	DAILY_COMPLETED_TASKS: "dailyCompletedTasks", // 已完成的每日任务快照，含 completedDate + completionEventId
+	ONBOARDING_HINTS_SEEN: "onboardingHintsSeen", // string[]，首次引导气泡的已读 hintKey 集合
 };
 
 export function get(key, defaultValue) {

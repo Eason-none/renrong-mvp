@@ -19,6 +19,7 @@
 
       <!-- 已领取任务区块 -->
       <view v-if="!dailyTaskStep && !instantStep && myTasks.length" class="daily-tasks-block">
+        <FirstTimeHint hint-key="claimed-tasks" text="选择了就去做吧，请体验这个过程。做完可以回来点击“做完啦”。" />
         <view class="daily-tasks-block__title">我的日常任务</view>
         <DailyTaskItem
           v-for="task in myTasks"
@@ -154,6 +155,7 @@ import DailyCard from '@/components/DailyCard.vue'
 import DailyTaskItem from '@/components/DailyTaskItem.vue'
 import ChatView from '@/components/ChatView.vue'
 import BasicInfoSettings from '@/components/BasicInfoSettings.vue'
+import FirstTimeHint from '@/components/FirstTimeHint.vue'
 import { get, set, KEYS } from '@/state/storage.js'
 import { getBasicInfo } from '@/state/basicInfo.js'
 import { getUncompletedTasks, completeTask, saveCompletedTask, getTodayCompleted, getPrevDayCompleted, clearPrevDayCompleted } from '@/state/dailyTaskPool.js'
@@ -170,7 +172,7 @@ function getTodayDateStr() {
 
 export default {
   name: 'IndexPage',
-  components: { NavBar, BreathingGuide, DailyCard, DailyTaskItem, ChatView, BasicInfoSettings },
+  components: { NavBar, BreathingGuide, DailyCard, DailyTaskItem, ChatView, BasicInfoSettings, FirstTimeHint },
   data() {
     return {
       breathingDone: false,

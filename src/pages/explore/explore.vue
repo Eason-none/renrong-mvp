@@ -6,7 +6,9 @@
         <view class="page__title">丰荣探索</view>
         <view v-if="totalReviewCount > 1" class="page__all-reviews-icon" @tap="view = 'all-reviews'">回顾</view>
       </view>
+      <view class="page__subtitle">你当然可以对每个探索的内容按自己的喜好调整，这些不是任务，去尝试去体验最重要</view>
       <CollectionGrid ref="grid" @select="onSelect" @review-tap="onReviewTap" />
+      <FirstTimeHint hint-key="explore-intro" text="这里是不同主题下的丰荣活动合集，挑感兴趣的自由探索。" />
       <CollectionUnlockModal
         v-if="selectedId"
         :collection-id="selectedId"
@@ -32,6 +34,7 @@ import CollectionUnlockModal from '@/components/CollectionUnlockModal.vue'
 import CollectionDetail from '@/components/CollectionDetail.vue'
 import ReviewView from '@/components/ReviewView.vue'
 import AllReviewsView from '@/components/AllReviewsView.vue'
+import FirstTimeHint from '@/components/FirstTimeHint.vue'
 import { getAllCollections } from '@/content/library.js'
 import { getReviewSnapshots } from '@/state/reviewOrchestration.js'
 
@@ -40,7 +43,7 @@ function countAllReviews() {
 }
 
 export default {
-  components: { NavBar, CollectionGrid, CollectionUnlockModal, CollectionDetail, ReviewView, AllReviewsView },
+  components: { NavBar, CollectionGrid, CollectionUnlockModal, CollectionDetail, ReviewView, AllReviewsView, FirstTimeHint },
   data() {
     return { selectedId: null, view: 'grid', activeCollectionId: null, totalReviewCount: countAllReviews() }
   },
@@ -88,6 +91,17 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.page__subtitle {
+  width: 100%;
+  padding: 0 70rpx;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 22rpx;
+  color: var(--c-subtle);
+  line-height: 1.7;
   margin-bottom: 32rpx;
 }
 
