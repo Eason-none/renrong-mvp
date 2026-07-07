@@ -149,7 +149,12 @@ export default {
     doRefresh() {
       if (this.refreshCount >= 3) return
       const sceneTags = this.playerInfo?.scene_tags || []
-      this.localCandidates = getDailyTaskCandidates(sceneTags, this.claimedIds)
+      // 排除当前正在展示的候选：保证"换一批"换出来的都是刚才没见过的条目
+      // （小场景匹配池下不排除很容易抽回同一条——真机验收反馈）。
+      // 新批不足3条就少展示几条；一条新的都抽不出时保留当前批（池子见底，换无可换）。
+      const excludeIds = [...this.claimedIds, ...this.localCandidates.map((t) => t.id)]
+      const next = getDailyTaskCandidates(sceneTags, excludeIds)
+      if (next.length > 0) this.localCandidates = next
       this.refreshCount++
     },
   },

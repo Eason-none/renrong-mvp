@@ -6,7 +6,17 @@
     </view>
     <view class="review-view__title">{{ collection.name }}的回顾</view>
 
-    <view v-if="snapshots.length === 0" class="review-view__loading">{{ failed ? failedText : loadingText }}</view>
+    <view v-if="snapshots.length === 0" class="review-view__loading">
+      <view class="review-view__loading-text">{{ failed ? failedText : loadingText }}</view>
+      <template v-if="!failed">
+        <view class="review-view__loading-dots">
+          <view class="review-view__dot"></view>
+          <view class="review-view__dot review-view__dot--2"></view>
+          <view class="review-view__dot review-view__dot--3"></view>
+        </view>
+        <view class="review-view__loading-sub">大概需要十几秒，也可以先回去逛逛，回来它就在了。</view>
+      </template>
+    </view>
 
     <view v-else class="review-view__list">
       <view v-for="snapshot in snapshots" :key="snapshot.id" class="review-view__entry">
@@ -115,11 +125,51 @@ export default {
 }
 
 .review-view__loading {
+  text-align: center;
+  padding: 120rpx 0;
+}
+
+.review-view__loading-text {
   font-size: 28rpx;
   color: var(--c-subtle);
   line-height: 1.85;
-  text-align: center;
-  padding: 120rpx 0;
+}
+
+/* 呼吸闪烁的三个点：告诉用户"正在进行中"，节奏沿用 ChatView 思考指示器（1.4s） */
+.review-view__loading-dots {
+  margin-top: 36rpx;
+  display: flex;
+  justify-content: center;
+  gap: 14rpx;
+}
+
+.review-view__dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: var(--c-subtle);
+  animation: review-dot-breathe 1.4s ease-in-out infinite;
+}
+
+.review-view__dot--2 {
+  animation-delay: 0.2s;
+}
+
+.review-view__dot--3 {
+  animation-delay: 0.4s;
+}
+
+@keyframes review-dot-breathe {
+  0%, 100% { opacity: 0.25; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.review-view__loading-sub {
+  margin-top: 32rpx;
+  font-size: 24rpx;
+  color: var(--c-subtle);
+  line-height: 1.75;
+  padding: 0 40rpx;
 }
 
 .review-view__list {
