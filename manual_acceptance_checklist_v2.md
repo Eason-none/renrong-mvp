@@ -96,16 +96,16 @@
 ## 8. 指标体系上线项（add-metrics-system，全部为上线前置）
 
 1. Supabase 服务端（一次性）：
-   - [ ] 8.1 在 Supabase Dashboard → SQL Editor 整段执行 `supabase/events_table.sql`（建 events 表 + 只写 RLS）
-   - [ ] 8.2 RLS 实测：用 anon key 向 `/rest/v1/events` POST 一行成功（201）；同 key GET/SELECT 被拒（401/403 或空策略拒绝）
+   - [x] 8.1 在 Supabase Dashboard → SQL Editor 整段执行 `supabase/events_table.sql`（建 events 表 + 只写 RLS）
+   - [x] 8.2 RLS 实测：用 anon key 向 `/rest/v1/events` POST 一行成功（201）；同 key GET/SELECT 被拒（401/403 或空策略拒绝）
 2. 环境变量：
-   - [ ] 8.3 生产构建配置 `VITE_SUPABASE_URL=https://<project>.supabase.co`（与 `VITE_API_PROXY_URL` 同项目；不配则上报整体静默禁用，功能不受影响）
+   - [x] 8.3 生产构建配置 `VITE_SUPABASE_URL=https://<project>.supabase.co`（与 `VITE_API_PROXY_URL` 同项目；不配则上报整体静默禁用，功能不受影响）
 3. 微信后台（只有账号本人能操作）：
-   - [ ] 8.4 隐私保护指引新增收集项："使用记录"（对应匿名行为事件上报）
-   - [ ] 8.5 确认 request 合法域名已含 `https://<project>.supabase.co`（LLM 代理已在用同域名，一般无需新增）
+   - [x] 8.4 隐私保护指引新增收集项："使用记录"（对应匿名行为事件上报）
+   - [x] 8.5 确认 request 合法域名已含 `https://<project>.supabase.co`（LLM 代理已在用同域名，一般无需新增）
 4. 端到端验证（生产模式构建，DEV 构建不上报是预期行为）：
-   - [ ] 8.6 打开小程序 → 完成一个任务 → 点开一个回顾，Supabase 表里依次出现 session_start / task_completed / review_opened，载荷仅含 anon_id/event/content_type/content_id/collection_id/client_ts，无任何个人信息
-   - [ ] 8.7 （非阻塞项，验不过不挡上线——失败模式安全：丢指标不丢功能）断网完成一个任务 → 联网后**打开两次**（flush 只在 onShow 试一次，刚恢复网络的首次可能网络栈未就绪），事件补发落表，且 client_ts 是断网时的实际完成时间（非补发时间）
+   - [x] 8.6 打开小程序 → 完成一个任务 → 点开一个回顾，Supabase 表里依次出现 session_start / task_completed / review_opened，载荷仅含 anon_id/event/content_type/content_id/collection_id/client_ts，无任何个人信息
+   - [x] 8.7 （非阻塞项，验不过不挡上线——失败模式安全：丢指标不丢功能）断网完成一个任务 → 联网后**打开两次**（flush 只在 onShow 试一次，刚恢复网络的首次可能网络栈未就绪），事件补发落表，且 client_ts 是断网时的实际完成时间（非补发时间）
    - [ ] 8.8 正式发布前，SQL Editor 执行 `truncate events;` 清掉全部自测数据，让正式指标从零开始（RLS 实测的 `rls-test` 行也一并清掉）
 
 ---
