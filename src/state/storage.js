@@ -14,6 +14,8 @@ export const KEYS = {
 	DAILY_CARD_SHOWN_DATE: "dailyCardShownDate", // YYYY-MM-DD，防止同天重复弹出日推卡片
 	DAILY_COMPLETED_TASKS: "dailyCompletedTasks", // 已完成的每日任务快照，含 completedDate + completionEventId
 	ONBOARDING_HINTS_SEEN: "onboardingHintsSeen", // string[]，首次引导气泡的已读 hintKey 集合
+	ANALYTICS_ANON_ID: "analyticsAnonId", // string，本地随机 UUID 上报标识——与用户任何输入/微信身份无关（spec: analytics-events）
+	ANALYTICS_QUEUE: "analyticsQueue", // 上报失败事件的有界待发队列（上限 200，超限丢最旧）
 };
 
 export function get(key, defaultValue) {

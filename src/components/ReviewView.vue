@@ -30,6 +30,7 @@
 import { getCollectionById, getCollectionItemById } from '@/content/library.js'
 import { getReviewSnapshots, ensureFirstReviewSnapshot } from '@/state/reviewOrchestration.js'
 import { getCompletionEvent } from '@/state/completionEvent.js'
+import { track } from '@/state/analytics.js'
 import { generateReviewText } from '@/api/review.js'
 import { generateSummaryText } from '@/api/deepseek.js'
 
@@ -67,6 +68,9 @@ export default {
     }
   },
   created() {
+    // 埋点在 generate 之前：口径是"打开"，生成失败也算已打开（specs/analytics-events）。
+    // 挂在组件而非入口点击处，未来任何新入口自动覆盖。
+    track('review_opened', { collection_id: this.collectionId })
     // defer-review-to-first-view：快照在首次点开时才生成，最后一条目的聊聊因此来得及
     // 进入素材。失败不落半成品，下次进来这段逻辑自然重试——不需要任何后台补偿。
     if (this.snapshots.length === 0) {

@@ -7,6 +7,7 @@
 
 import { get, set, KEYS } from "./storage.js";
 import { getCollectionState, recordCollectionItemCompletion } from "./collectionMachine.js";
+import { track } from "./analytics.js";
 
 // product_handoff.md §6.5.1 定稿文案：全产品统一一句，不分内容类型。
 export const COMPLETION_INVITE_TEXT = "刚才做的这件事给你带来了什么感受吗？很愿意听你聊聊";
@@ -52,6 +53,13 @@ export function createCompletionEvent({ contentId, contentType, collectionId }) 
 	if (contentType === "collection_item") {
 		recordCollectionItemCompletion(collectionId);
 	}
+
+	// 唯一完成漏斗上的匿名埋点——未来任何新完成入口自动覆盖（design.md D4）。
+	track("task_completed", {
+		content_type: event.content_type,
+		content_id: event.content_id,
+		collection_id: event.collection_id,
+	});
 
 	return event;
 }

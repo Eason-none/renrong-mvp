@@ -1,10 +1,15 @@
 <script>
+import { flushQueue, track } from './state/analytics.js'
+
 export default {
   onLaunch: function () {
     console.log('App Launch')
   },
   onShow: function () {
-    console.log('App Show')
+    // 先冲待发队列再报本次 session_start（specs/analytics-events：失败事件有界重发）。
+    // onShow 含冷启动和后台切回，多报由 SQL 口径按 anon_id+天去重（design.md D3）。
+    flushQueue()
+    track('session_start')
   },
   onHide: function () {
     console.log('App Hide')
