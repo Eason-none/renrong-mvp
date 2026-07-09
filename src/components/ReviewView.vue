@@ -1,6 +1,6 @@
 <template>
   <view class="review-view">
-    <view class="review-view__page-nav" @tap="$emit('close')">
+    <view class="review-view__page-nav" hover-class="u-press" @tap="$emit('close')">
       <view class="review-view__back-arrow">‹</view>
       <view class="review-view__back-label">图鉴</view>
     </view>
@@ -166,6 +166,13 @@ export default {
 @keyframes review-dot-breathe {
   0%, 100% { opacity: 0.25; transform: scale(0.9); }
   50% { opacity: 1; transform: scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-view__dot {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 .review-view__loading-sub {

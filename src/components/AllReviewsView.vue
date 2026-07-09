@@ -1,6 +1,6 @@
 <template>
   <view class="all-reviews">
-    <view class="all-reviews__page-nav" @tap="$emit('close')">
+    <view class="all-reviews__page-nav" hover-class="u-press" @tap="$emit('close')">
       <view class="all-reviews__back-arrow">‹</view>
       <view class="all-reviews__back-label">图鉴</view>
     </view>
@@ -73,7 +73,7 @@ export default {
 }
 
 .all-reviews__group-name {
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: var(--c-subtle);
   letter-spacing: 0.10em;
   margin-bottom: 24rpx;

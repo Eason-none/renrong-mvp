@@ -29,6 +29,7 @@
           :key="opt.value"
           class="basic-info__tag"
           :class="{ 'basic-info__tag--active': form.scene_tags.includes(opt.value) }"
+          hover-class="u-press"
           @tap="toggleTag(opt.value)"
         >{{ opt.label }}</view>
       </view>
@@ -42,6 +43,7 @@
           :key="opt.value"
           class="basic-info__tag"
           :class="{ 'basic-info__tag--active': form.scene_tags.includes(opt.value) }"
+          hover-class="u-press"
           @tap="toggleTag(opt.value)"
         >{{ opt.label }}</view>
       </view>
@@ -55,12 +57,13 @@
           :key="opt.value"
           class="basic-info__tag"
           :class="{ 'basic-info__tag--active': form.scene_tags.includes(opt.value) }"
+          hover-class="u-press"
           @tap="toggleTag(opt.value)"
         >{{ opt.label }}</view>
       </view>
     </view>
 
-    <view class="basic-info__save" @tap="save">保存</view>
+    <view class="basic-info__save" hover-class="u-press" @tap="save">保存</view>
   </view>
 </template>
 
@@ -169,12 +172,13 @@ export default {
 }
 
 .basic-info__tag {
-  padding: 12rpx 28rpx;
+  padding: 16rpx 32rpx;
   border-radius: 999rpx;
-  border: 1rpx solid var(--c-border);
+  border: 1rpx solid var(--c-border-s);
   font-size: 26rpx;
   color: var(--c-muted);
   background: var(--c-surface);
+  transition: transform 0.12s ease, opacity 0.12s ease, background 0.15s ease;
 }
 
 .basic-info__tag--active {
@@ -187,10 +191,12 @@ export default {
   margin-top: 48rpx;
   padding: 30rpx 0;
   text-align: center;
-  background: var(--c-ink);
-  color: #fff;
+  background: var(--c-primary);
+  color: #f0f5ef;
   border-radius: 999rpx;
   font-size: 30rpx;
   letter-spacing: 0.02em;
+  box-shadow: var(--sh-card);
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 </style>

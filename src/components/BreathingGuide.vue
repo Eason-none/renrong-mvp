@@ -20,8 +20,8 @@
     >{{ hint }}</view>
 
     <view v-if="!started" class="breathing__actions">
-      <view class="breathing__btn breathing__btn--primary" @tap="start">我准备好了</view>
-      <view class="breathing__btn" @tap="skip">跳过</view>
+      <view class="breathing__btn breathing__btn--primary" hover-class="u-press" @tap="start">我准备好了</view>
+      <view class="breathing__btn" hover-class="u-press" @tap="skip">跳过</view>
     </view>
   </view>
 </template>
@@ -231,14 +231,28 @@ export default {
 .breathing__btn {
   padding: 26rpx 48rpx;
   border-radius: 999rpx;
-  border: 1rpx solid var(--c-border);
+  border: 1rpx solid var(--c-border-s);
+  background: var(--c-card);
   color: var(--c-muted);
   font-size: 28rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .breathing__btn--primary {
   background: var(--c-primary);
   color: #f0f5ef;
   border-color: transparent;
+  box-shadow: var(--sh-card);
+}
+
+/* 减少动态：光晕/圆环停止循环，圆圈缩放由 JS 内联 transition 驱动，
+   静止大圆 + 阶段文字仍完整传达 4-7-8 节奏 */
+@media (prefers-reduced-motion: reduce) {
+  .breathing__glow,
+  .breathing__ring {
+    animation: none;
+    opacity: 0.35;
+    transform: none;
+  }
 }
 </style>

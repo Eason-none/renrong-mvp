@@ -1,10 +1,12 @@
 <template>
   <view class="collection-grid">
     <view
-      v-for="entry in collections"
+      v-for="(entry, index) in collections"
       :key="entry.collection.id"
       class="collection-grid__card"
       :class="`collection-grid__card--${entry.state.status}`"
+      :style="{ animationDelay: Math.min(index, 7) * 45 + 'ms' }"
+      hover-class="u-press"
       @tap="$emit('select', entry.collection.id)"
     >
       <view>
@@ -19,6 +21,7 @@
         <view
           v-if="entry.state.status === 'completed'"
           class="collection-grid__status collection-grid__status--done"
+          hover-class="u-press"
           @tap.stop="$emit('reviewTap', entry.collection.id)"
         >
           ✦ 已点亮  回顾 →
@@ -69,38 +72,50 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 20rpx;
-  padding: 0 20rpx;
+  padding: 0 24rpx;
   width: 100%;
+  box-sizing: border-box;
 }
 
+/* 状态权重与产品意图一致：
+   locked   = 还没贴进册子的空位，退回纸面（无卡无影）
+   active   = 贴上去的标本卡，绿色标记
+   completed= 烫金的一页，全 app 唯一的金色时刻 */
 .collection-grid__card {
   width: calc(50% - 10rpx);
   min-height: 276rpx;
   padding: 28rpx;
-  border-radius: 36rpx;
-  border: 1rpx solid var(--c-border);
-  background: var(--c-bg);
+  border-radius: 28rpx;
+  border: 1rpx solid var(--c-border-s);
+  background: var(--c-card);
   box-shadow: var(--sh-card);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  animation: rise-in 0.32s var(--ease-out) both;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collection-grid__card {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 .collection-grid__card--locked {
-  background: var(--c-surface-alt);
+  background: transparent;
   box-shadow: none;
-  border-color: var(--c-border);
+  border: 1rpx solid var(--c-border);
 }
 
 .collection-grid__card--completed {
-  border-color: rgba(205, 145, 48, 0.25);
-  background: rgba(205, 145, 48, 0.03);
+  border: 2rpx solid rgba(205, 145, 48, 0.45);
+  background: var(--c-accent-soft);
 }
 
 .collection-grid__card--active {
-  border-color: rgba(18, 71, 3, 0.22);
-  background: rgba(18, 71, 3, 0.03);
+  border: 1rpx solid rgba(18, 71, 3, 0.3);
 }
 
 .collection-grid__top {
@@ -111,7 +126,7 @@ export default {
 }
 
 .collection-grid__type {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: var(--c-subtle);
   letter-spacing: 0.12em;
 }
@@ -150,18 +165,25 @@ export default {
   line-height: 1.65;
 }
 
+/* 烫金底上的灰绿小字会发灰，换更深的中性色保证对比 */
+.collection-grid__card--completed .collection-grid__intro,
+.collection-grid__card--completed .collection-grid__type {
+  color: var(--c-muted);
+}
+
 .collection-grid__status {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--c-subtle);
   margin-top: 20rpx;
 }
 
 .collection-grid__status--active {
   color: var(--c-primary);
+  font-weight: 500;
 }
 
 .collection-grid__status--done {
-  color: var(--c-accent);
+  color: var(--c-accent-ink);
   font-weight: 500;
 }
 </style>

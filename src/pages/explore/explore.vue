@@ -4,7 +4,7 @@
       <NavBar />
       <view class="page__header">
         <view class="page__title">丰荣探索</view>
-        <view v-if="totalReviewCount > 1" class="page__all-reviews-icon" @tap="view = 'all-reviews'">回顾</view>
+        <view v-if="totalReviewCount > 1" class="page__all-reviews-icon" hover-class="u-press" @tap="view = 'all-reviews'">回顾</view>
       </view>
       <view class="page__subtitle">你当然可以对每个探索的内容按自己的喜好调整，这些不是任务，去尝试去体验最重要</view>
       <CollectionGrid ref="grid" @select="onSelect" @review-tap="onReviewTap" />
@@ -82,7 +82,11 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 200rpx;
+  padding-top: 128rpx;
+  padding-bottom: 48rpx;
+  /* H5 端 --window-top/--window-bottom 是导航栏/tabbar 高度，小程序端为 0 */
+  min-height: calc(100vh - var(--window-top, 0px) - var(--window-bottom, 0px));
+  box-sizing: border-box;
 }
 
 .page__header {
@@ -92,6 +96,7 @@ export default {
   justify-content: center;
   align-items: center;
   margin-bottom: 12rpx;
+  animation: rise-in 0.32s var(--ease-out) both;
 }
 
 .page__subtitle {
@@ -99,26 +104,36 @@ export default {
   padding: 0 70rpx;
   box-sizing: border-box;
   text-align: center;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--c-subtle);
   line-height: 1.7;
-  margin-bottom: 32rpx;
+  margin-bottom: 36rpx;
+  animation: rise-in 0.32s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page__header,
+  .page__subtitle {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 .page__title {
-  font-size: 40rpx;
+  font-size: 44rpx;
   color: var(--c-ink);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .page__all-reviews-icon {
   position: absolute;
   right: 40rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: var(--c-primary);
-  padding: 10rpx 22rpx;
-  border: 1rpx solid rgba(18, 71, 3, 0.35);
+  padding: 14rpx 28rpx;
+  background: var(--c-card);
+  border: 1rpx solid var(--c-border-s);
   border-radius: 999rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 </style>

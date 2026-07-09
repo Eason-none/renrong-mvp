@@ -14,28 +14,28 @@
           <view class="unlock-modal__blocked">过多的选择可能分散对过程感受的注意力。你随时可以开启新的图鉴，不过需要先把一个暂时放下。</view>
           <view v-for="c in activeCollections" :key="c.id" class="unlock-modal__active-row">
             <view class="unlock-modal__active-name">{{ c.name }}</view>
-            <view class="unlock-modal__btn unlock-modal__btn--small" @tap="putDownFromLimit(c.id)">放下</view>
+            <view class="unlock-modal__btn unlock-modal__btn--small" hover-class="u-press" @tap="putDownFromLimit(c.id)">放下</view>
           </view>
         </template>
         <view class="unlock-modal__actions">
-          <view v-if="!atLimit" class="unlock-modal__btn unlock-modal__btn--primary" @tap="startExploring">
+          <view v-if="!atLimit" class="unlock-modal__btn unlock-modal__btn--primary" hover-class="u-press" @tap="startExploring">
             开始探索
           </view>
-          <view class="unlock-modal__btn" @tap="$emit('close')">{{ atLimit ? '再逛逛' : '算了' }}</view>
+          <view class="unlock-modal__btn" hover-class="u-press" @tap="$emit('close')">{{ atLimit ? '再逛逛' : '算了' }}</view>
         </view>
       </template>
 
       <template v-else-if="state.status === 'active'">
         <view class="unlock-modal__actions">
-          <view class="unlock-modal__btn unlock-modal__btn--primary" @tap="$emit('enter', collectionId)">进入图鉴</view>
-          <view class="unlock-modal__btn" @tap="putDownAction">放下</view>
+          <view class="unlock-modal__btn unlock-modal__btn--primary" hover-class="u-press" @tap="$emit('enter', collectionId)">进入图鉴</view>
+          <view class="unlock-modal__btn" hover-class="u-press" @tap="putDownAction">放下</view>
         </view>
       </template>
 
       <template v-else>
         <view class="unlock-modal__actions">
-          <view class="unlock-modal__btn unlock-modal__btn--primary" @tap="$emit('enter', collectionId)">进入图鉴</view>
-          <view class="unlock-modal__btn" @tap="$emit('close')">关闭</view>
+          <view class="unlock-modal__btn unlock-modal__btn--primary" hover-class="u-press" @tap="$emit('enter', collectionId)">进入图鉴</view>
+          <view class="unlock-modal__btn" hover-class="u-press" @tap="$emit('close')">关闭</view>
         </view>
       </template>
     </view>
@@ -105,19 +105,28 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(8, 16, 6, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
+  animation: fade-in 0.2s ease both;
 }
 
 .unlock-modal__sheet {
   width: 80%;
-  background: var(--c-bg);
-  border-radius: 44rpx;
+  background: var(--c-card);
+  border-radius: 32rpx;
   padding: 48rpx 40rpx;
   box-shadow: var(--sh-float);
+  animation: rise-in 0.3s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unlock-modal,
+  .unlock-modal__sheet {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 .unlock-modal__name {
@@ -193,11 +202,13 @@ export default {
 }
 
 .unlock-modal__btn {
-  padding: 22rpx 48rpx;
+  padding: 24rpx 48rpx;
   border-radius: 999rpx;
-  border: 1rpx solid var(--c-border);
+  border: 1rpx solid var(--c-border-s);
+  background: var(--c-card);
   color: var(--c-muted);
   font-size: 28rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .unlock-modal__btn--primary {

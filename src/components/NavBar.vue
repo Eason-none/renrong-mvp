@@ -6,13 +6,13 @@
   <view v-if="visible" class="nav-badge__overlay" @tap="close">
     <view class="nav-badge__sheet" @tap.stop>
       <template v-if="!showPrivacy && !showBasicInfo">
-        <view class="nav-badge__item" @tap="openBasicInfo">基本信息</view>
-        <view class="nav-badge__item" @tap="requestReminder">主动提醒（去开启提醒）</view>
-        <view class="nav-badge__item" @tap="openPrivacy">隐私政策</view>
-        <view class="nav-badge__close" @tap="close">关闭</view>
+        <view class="nav-badge__item" hover-class="u-press" @tap="openBasicInfo">基本信息</view>
+        <view class="nav-badge__item" hover-class="u-press" @tap="requestReminder">主动提醒（去开启提醒）</view>
+        <view class="nav-badge__item" hover-class="u-press" @tap="openPrivacy">隐私政策</view>
+        <view class="nav-badge__close" hover-class="u-press" @tap="close">关闭</view>
       </template>
       <template v-else-if="showBasicInfo">
-        <view class="nav-badge__privacy-back" @tap="closeBasicInfo">‹ 返回</view>
+        <view class="nav-badge__privacy-back" hover-class="u-press" @tap="closeBasicInfo">‹ 返回</view>
         <scroll-view class="nav-badge__basic-info-scroll" scroll-y>
           <BasicInfoSettings @close="closeBasicInfo" />
         </scroll-view>
@@ -121,18 +121,27 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(8, 16, 6, 0.4);
   z-index: 20;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  animation: fade-in 0.2s ease both;
 }
 
 .nav-badge__sheet {
   width: 100%;
-  background: var(--c-bg);
-  border-radius: 48rpx 48rpx 0 0;
+  background: var(--c-card);
+  border-radius: 36rpx 36rpx 0 0;
   padding: 40rpx 40rpx 60rpx;
+  animation: sheet-up 0.3s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-badge__overlay,
+  .nav-badge__sheet {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 .nav-badge__item {

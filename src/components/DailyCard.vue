@@ -10,7 +10,7 @@
             当前累计生存时长为 {{ survivalDays }} 天！
           </text>
           <text class="daily-card__info-line">今日编号为：{{ todayStr }}。</text>
-          <text class="daily-card__info-line">您当前登陆的城市为：{{ city || '未知' }}！</text>
+          <text class="daily-card__info-line">{{ cityLine }}</text>
           <text class="daily-card__info-line">区域环境情况：{{ envDesc }}</text>
         </view>
 
@@ -25,9 +25,9 @@
             class="daily-card__prev-completed__item"
           >
             <text class="daily-card__prev-completed__title">{{ task.title }}</text>
-            <view class="daily-card__prev-completed__btn" @tap="$emit('chat-completed', task)">聊聊</view>
+            <view class="daily-card__prev-completed__btn" hover-class="u-press" @tap="$emit('chat-completed', task)">聊聊</view>
           </view>
-          <view class="daily-card__prev-completed__clear" @tap="$emit('clear-completed')">全部清掉</view>
+          <view class="daily-card__prev-completed__clear" hover-class="u-press" @tap="$emit('clear-completed')">全部清掉</view>
         </view>
 
         <!-- 固定提醒文案 -->
@@ -51,6 +51,7 @@
           <view
             class="daily-card__task-btn"
             :class="{ 'daily-card__task-btn--claimed': claimedIds.includes(task.id) }"
+            hover-class="u-press"
             @tap="claim(task)"
           >
             {{ claimedIds.includes(task.id) ? '已领取' : '领取' }}
@@ -58,7 +59,7 @@
         </view>
 
         <!-- 换一批 -->
-        <view v-if="refreshCount < 3" class="daily-card__refresh" @tap="doRefresh">
+        <view v-if="refreshCount < 3" class="daily-card__refresh" hover-class="u-press" @tap="doRefresh">
           换一批
         </view>
         <view v-else class="daily-card__refresh-exhausted">
@@ -71,7 +72,7 @@
         </view>
 
         <!-- 关闭 -->
-        <view class="daily-card__close" @tap="$emit('close')">关闭</view>
+        <view class="daily-card__close" hover-class="u-press" @tap="$emit('close')">关闭</view>
       </view>
     </scroll-view>
   </view>
@@ -130,13 +131,17 @@ export default {
       const p = this.playerInfo
       return !!(p?.player_id && p?.birth_date && p?.scene_tags?.length)
     },
+    // 定位/天气取不到时收起感叹号——失败态不该带上播报的兴奋语气
+    cityLine() {
+      return this.city ? `您当前登陆的城市为：${this.city}！` : '您当前登陆的城市为：未知。'
+    },
     envDesc() {
       const parts = []
       if (this.weatherText) parts.push(this.weatherText)
       if (this.temp) parts.push(`气温 ${this.temp}°C`)
       if (this.airQuality) parts.push(`空气${this.airQuality}`)
       if (this.warning) parts.push(`⚠️ ${this.warning}`)
-      return parts.length ? parts.join('，') + '！' : '未知'
+      return parts.length ? parts.join('，') + '！' : '未知。'
     },
   },
   methods: {
@@ -168,32 +173,46 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(8, 16, 6, 0.65);
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fade-in 0.2s ease both;
 }
 
 .daily-card__scroll {
   width: 90%;
   max-height: 85vh;
-  background: var(--c-bg);
-  border-radius: 44rpx;
+  background: var(--c-card);
+  border-radius: 32rpx;
+  box-shadow: var(--sh-float);
+  animation: rise-in 0.32s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-card__overlay,
+  .daily-card__scroll {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 .daily-card__body {
   padding: 48rpx 40rpx 40rpx;
 }
 
+/* 信笺式抬头：一条压印分隔线，让"地球online公函"有个落款结构 */
 .daily-card__header {
-  margin-bottom: 40rpx;
+  margin-bottom: 36rpx;
+  padding-bottom: 28rpx;
+  border-bottom: 2rpx solid var(--c-border-s);
 }
 
 .daily-card__greeting {
   display: block;
-  font-size: 30rpx;
-  line-height: 1.9;
+  font-size: 32rpx;
+  font-weight: 600;
+  line-height: 1.8;
   color: var(--c-ink);
   margin-bottom: 8rpx;
 }
@@ -235,12 +254,14 @@ export default {
 }
 
 .daily-card__prev-completed__btn {
-  font-size: 24rpx;
-  color: var(--c-muted);
-  border: 1rpx solid var(--c-border);
+  font-size: 26rpx;
+  color: var(--c-primary);
+  border: 1rpx solid var(--c-border-s);
+  background: var(--c-card);
   border-radius: 999rpx;
-  padding: 8rpx 24rpx;
+  padding: 14rpx 30rpx;
   flex-shrink: 0;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .daily-card__prev-completed__clear {
@@ -270,7 +291,7 @@ export default {
 
 .daily-card__tasks-title {
   font-size: 26rpx;
-  color: var(--c-subtle);
+  color: var(--c-muted);
   letter-spacing: 0.08em;
   margin-bottom: 20rpx;
 }
@@ -305,11 +326,12 @@ export default {
 
 .daily-card__task-btn {
   flex-shrink: 0;
-  padding: 12rpx 28rpx;
+  padding: 18rpx 36rpx;
   border-radius: 999rpx;
-  border: 1rpx solid var(--c-border);
-  font-size: 24rpx;
-  color: var(--c-muted);
+  border: 1rpx solid var(--c-border-s);
+  font-size: 26rpx;
+  color: var(--c-primary);
+  transition: transform 0.12s ease, opacity 0.12s ease, background 0.15s ease;
 }
 
 .daily-card__task-btn--claimed {
@@ -323,9 +345,10 @@ export default {
   text-align: center;
   font-size: 26rpx;
   color: var(--c-muted);
-  padding: 16rpx 0;
-  border: 1rpx solid var(--c-border);
+  padding: 20rpx 0;
+  border: 1rpx solid var(--c-border-s);
   border-radius: 999rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .daily-card__refresh-exhausted {

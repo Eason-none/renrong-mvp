@@ -1,6 +1,6 @@
 <template>
-  <view class="collection-detail">
-    <view class="collection-detail__page-nav" @tap="back">
+  <view class="collection-detail" :class="{ 'collection-detail--fill': step === 'card' }">
+    <view class="collection-detail__page-nav" hover-class="u-press" @tap="back">
       <view class="collection-detail__back-arrow">‹</view>
       <view class="collection-detail__back-label">图鉴</view>
     </view>
@@ -17,6 +17,7 @@
         :key="item.id"
         class="collection-detail__item-row"
         :class="{ 'collection-detail__item-row--done': doneItemIds.includes(item.id) }"
+        hover-class="u-press"
         @tap="onRowTap(item)"
       >
         <view class="collection-detail__item-dot"></view>
@@ -29,22 +30,29 @@
       </view>
     </template>
 
+    <!-- 手贴卡（与即时小事同一套词汇）：居中微旋 + 纸胶带，"做完啦"沉底 -->
     <template v-else-if="step === 'card'">
-      <view class="collection-detail__card">
-        <view class="collection-detail__card-badge">{{ selectedItem.time }}</view>
-        <view class="collection-detail__card-title">{{ selectedItem.title }}</view>
-        <view v-if="selectedItem.condition" class="collection-detail__card-condition">{{ selectedItem.condition }}</view>
-        <view class="collection-detail__card-hr"></view>
-        <view class="collection-detail__card-instructions">{{ selectedItem.instructions }}</view>
+      <view class="collection-detail__stage">
+        <view class="collection-detail__card collection-detail__card--pinned">
+          <view class="collection-detail__tape"></view>
+          <view class="collection-detail__card-badge">{{ selectedItem.time }}</view>
+          <view class="collection-detail__card-title">{{ selectedItem.title }}</view>
+          <view v-if="selectedItem.condition" class="collection-detail__card-condition">{{ selectedItem.condition }}</view>
+          <view class="collection-detail__card-hr"></view>
+          <view class="collection-detail__card-instructions">{{ selectedItem.instructions }}</view>
+        </view>
       </view>
-      <view class="collection-detail__done-btn" @tap="markDone">做完啦</view>
+      <view class="collection-detail__done-btn" hover-class="u-press" @tap="markDone">做完啦</view>
     </template>
 
     <template v-else-if="step === 'invite'">
-      <view class="collection-detail__invite-text">{{ inviteText }}</view>
-      <view class="collection-detail__actions">
-        <view class="collection-detail__btn collection-detail__btn--primary" @tap="startChat">聊聊</view>
-        <view class="collection-detail__btn" @tap="backToList">跳过</view>
+      <view class="collection-detail__invite">
+        <view class="ritual-seal">✦</view>
+        <view class="collection-detail__invite-text">{{ inviteText }}</view>
+        <view class="collection-detail__actions">
+          <view class="collection-detail__btn collection-detail__btn--primary" hover-class="u-press" @tap="startChat">聊聊</view>
+          <view class="collection-detail__btn" hover-class="u-press" @tap="backToList">跳过</view>
+        </view>
       </view>
     </template>
 
@@ -206,6 +214,43 @@ export default {
   box-sizing: border-box;
 }
 
+/* 条目卡步骤：撑满可视高度，让"做完啦"沉到拇指区。
+   176rpx = explore 页 .page 的上(128)下(48)内边距，改那边时同步这里 */
+.collection-detail--fill {
+  min-height: calc(100vh - var(--window-top, 0px) - var(--window-bottom, 0px) - 176rpx);
+}
+
+/* 手贴卡的"桌面"（与 index 的 push-flow__stage 同一词汇） */
+.collection-detail__stage {
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 20rpx;
+}
+
+.collection-detail__card--pinned {
+  position: relative;
+  transform: rotate(0.4deg);
+  margin-top: 0;
+}
+
+/* 纸胶带（小程序组件样式隔离，需在本组件内自带一份） */
+.collection-detail__tape {
+  position: absolute;
+  top: -16rpx;
+  left: 50%;
+  width: 128rpx;
+  height: 36rpx;
+  transform: translateX(-50%) rotate(-2.5deg);
+  background: rgba(197, 219, 189, 0.68);
+  border: 1rpx solid rgba(18, 71, 3, 0.07);
+  border-radius: 2rpx;
+}
+
 .collection-detail__page-nav {
   display: flex;
   align-items: center;
@@ -231,7 +276,7 @@ export default {
 }
 
 .collection-detail__type-tag {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: var(--c-subtle);
   letter-spacing: 0.12em;
   margin-bottom: 12rpx;
@@ -313,19 +358,22 @@ export default {
 
 .collection-detail__item-chat {
   flex-shrink: 0;
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: var(--c-primary);
+  padding: 12rpx 0 12rpx 20rpx;
 }
 
 /* Card step */
 .collection-detail__card {
   width: 100%;
-  padding: 40rpx;
-  border-radius: 44rpx;
-  background: var(--c-surface);
-  border: 1rpx solid var(--c-border);
+  padding: 44rpx 40rpx;
+  border-radius: 28rpx;
+  background: var(--c-card);
+  border: 1rpx solid var(--c-border-s);
   box-shadow: var(--sh-card);
   margin-top: 12rpx;
+  box-sizing: border-box;
+  animation: rise-in 0.28s var(--ease-out) both;
 }
 
 .collection-detail__card-badge {
@@ -371,21 +419,38 @@ export default {
   width: 100%;
   padding: 30rpx;
   border-radius: 999rpx;
-  background: var(--c-ink);
-  color: #fff;
+  background: var(--c-primary);
+  color: #f0f5ef;
   font-size: 30rpx;
   text-align: center;
   letter-spacing: 0.02em;
+  box-sizing: border-box;
+  box-shadow: var(--sh-card);
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
-/* Invite step */
+/* Invite step（完成时刻：金色印记 + 邀请） */
+.collection-detail__invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 48rpx;
+  animation: rise-in 0.28s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collection-detail__card,
+  .collection-detail__invite {
+    animation: fade-in 0.2s ease both;
+  }
+}
+
 .collection-detail__invite-text {
   font-size: 28rpx;
   color: var(--c-muted);
   line-height: 1.85;
   text-align: center;
   padding: 0 20rpx;
-  margin-top: 40rpx;
 }
 
 .collection-detail__actions {
@@ -396,16 +461,18 @@ export default {
 }
 
 .collection-detail__btn {
-  padding: 22rpx 48rpx;
+  padding: 24rpx 48rpx;
   border-radius: 999rpx;
-  border: 1rpx solid var(--c-border);
+  border: 1rpx solid var(--c-border-s);
+  background: var(--c-card);
   color: var(--c-muted);
   font-size: 28rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .collection-detail__btn--primary {
-  background: var(--c-primary-soft);
-  color: var(--c-primary);
+  background: var(--c-primary);
+  color: #f0f5ef;
   border-color: transparent;
 }
 </style>

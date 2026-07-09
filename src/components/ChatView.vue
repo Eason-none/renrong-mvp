@@ -1,7 +1,7 @@
 <template>
   <view class="chat">
     <view class="chat__header">
-      <view class="chat__back" @tap="$emit('close')">‹ 返回</view>
+      <view class="chat__back" hover-class="u-press" @tap="$emit('close')">‹ 返回</view>
       <view class="chat__title">聊聊</view>
     </view>
 
@@ -49,15 +49,15 @@
     </view>
 
     <view class="chat__input-row">
-      <view class="chat__image-btn" @tap="chooseImage">📷</view>
+      <view class="chat__image-btn" hover-class="u-press" @tap="chooseImage">📷</view>
       <input
         class="chat__input"
         v-model="inputText"
         placeholder="说说看，不说也可以"
         :disabled="sending || finishing"
       />
-      <view class="chat__send-btn" @tap="send">发送</view>
-      <view class="chat__done-btn" @tap="done">说完了</view>
+      <view class="chat__send-btn" hover-class="u-press" @tap="send">发送</view>
+      <view class="chat__done-btn" hover-class="u-press" @tap="done">说完了</view>
     </view>
   </view>
 </template>
@@ -224,23 +224,34 @@ export default {
 
 .chat__bubble {
   max-width: 80%;
-  padding: 16rpx 24rpx;
+  padding: 20rpx 28rpx;
   margin-bottom: 16rpx;
-  border-radius: 16rpx;
+  border-radius: 24rpx;
   font-size: 28rpx;
-  line-height: 1.5;
+  line-height: 1.6;
+  animation: rise-in 0.24s var(--ease-out) both;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .chat__bubble {
+    animation: fade-in 0.15s ease both;
+  }
+}
+
+/* 小圆角指向说话的一侧，气泡有了朝向 */
 .chat__bubble--user {
   margin-left: auto;
   background: var(--c-primary-soft);
   color: var(--c-ink);
+  border-bottom-right-radius: 8rpx;
 }
 
 .chat__bubble--assistant {
   margin-right: auto;
-  background: var(--c-surface);
+  background: var(--c-card);
+  border: 1rpx solid var(--c-border);
   color: var(--c-ink);
+  border-bottom-left-radius: 8rpx;
 }
 
 .chat__bubble-image {
@@ -265,8 +276,15 @@ export default {
   50% { opacity: 1; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .chat__thinking-dots {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 .chat__error {
-  color: var(--c-accent);
+  color: var(--c-accent-ink);
   font-size: 24rpx;
   padding: 12rpx 0;
 }
@@ -297,7 +315,7 @@ export default {
   opacity: 1;
   transition: opacity 0.6s ease;
   animation: chat-closing-in 0.45s ease;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(243, 247, 240, 0.94);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -333,24 +351,28 @@ export default {
 
 .chat__input {
   flex: 1;
-  border: 1rpx solid var(--c-border);
+  border: 1rpx solid var(--c-border-s);
+  background: var(--c-card);
   border-radius: 999rpx;
-  padding: 12rpx 24rpx;
+  padding: 16rpx 28rpx;
   margin-right: 16rpx;
   color: var(--c-ink);
 }
 
 .chat__send-btn {
-  padding: 12rpx 28rpx;
+  padding: 16rpx 30rpx;
   border-radius: 999rpx;
-  background: var(--c-primary-soft);
-  color: var(--c-primary);
+  background: var(--c-primary);
+  color: #f0f5ef;
   margin-right: 16rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
 .chat__done-btn {
-  font-size: 24rpx;
-  color: var(--c-subtle);
+  font-size: 26rpx;
+  color: var(--c-muted);
   white-space: nowrap;
+  padding: 16rpx 0;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 </style>

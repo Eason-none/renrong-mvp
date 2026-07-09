@@ -2,7 +2,7 @@
   <view v-if="visible" class="first-hint">
     <view class="first-hint__sheet">
       <view class="first-hint__text">{{ text }}</view>
-      <view class="first-hint__btn" @tap="dismiss">知道了</view>
+      <view class="first-hint__btn" hover-class="u-press" @tap="dismiss">知道了</view>
     </view>
   </view>
 </template>
@@ -39,19 +39,28 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(8, 16, 6, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
+  animation: fade-in 0.2s ease both;
 }
 
 .first-hint__sheet {
   width: 72%;
-  background: var(--c-bg);
-  border-radius: 44rpx;
+  background: var(--c-card);
+  border-radius: 32rpx;
   padding: 48rpx 44rpx 40rpx;
   box-shadow: var(--sh-float);
+  animation: rise-in 0.3s var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .first-hint,
+  .first-hint__sheet {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 .first-hint__text {
@@ -64,10 +73,11 @@ export default {
 .first-hint__btn {
   align-self: center;
   text-align: center;
-  padding: 20rpx 0;
+  padding: 22rpx 0;
   border-radius: 999rpx;
   background: var(--c-primary);
   color: #f0f5ef;
   font-size: 28rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
 </style>
