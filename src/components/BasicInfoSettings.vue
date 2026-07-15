@@ -13,12 +13,17 @@
     </view>
 
     <view class="basic-info__field">
-      <text class="basic-info__label">出生日期</text>
-      <picker mode="date" :value="form.birth_date" @change="onBirthDateChange">
-        <view class="basic-info__picker">
-          {{ form.birth_date || '选择日期' }}
-        </view>
-      </picker>
+      <text class="basic-info__label">出生日期（选填）</text>
+      <view class="basic-info__picker-row">
+        <picker class="basic-info__picker-wrap" mode="date" :value="form.birth_date" @change="onBirthDateChange">
+          <view class="basic-info__picker">
+            {{ form.birth_date || '选择日期，也可以不填' }}
+          </view>
+        </picker>
+        <!-- 微信的 date picker 点开后只能"选一个"或取消，选过就回不到未填——这里补上反悔口。
+             不弹确认：误点清除后重选的成本极低，确认弹窗只会添堵。 -->
+        <view v-if="form.birth_date" class="basic-info__picker-clear" hover-class="u-press" @tap="clearBirthDate">清除</view>
+      </view>
     </view>
 
     <view class="basic-info__field">
@@ -107,6 +112,9 @@ export default {
     onBirthDateChange(e) {
       this.form.birth_date = e.detail.value
     },
+    clearBirthDate() {
+      this.form.birth_date = ''
+    },
     toggleTag(value) {
       const idx = this.form.scene_tags.indexOf(value)
       if (idx === -1) {
@@ -158,11 +166,28 @@ export default {
   color: var(--c-ink);
 }
 
+.basic-info__picker-row {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.basic-info__picker-wrap {
+  flex: 1;
+}
+
 .basic-info__picker {
   border-bottom: 1rpx solid var(--c-border);
   padding: 12rpx 0;
   font-size: 30rpx;
   color: var(--c-ink);
+}
+
+.basic-info__picker-clear {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: var(--c-muted);
+  padding: 12rpx 8rpx;
 }
 
 .basic-info__tags {

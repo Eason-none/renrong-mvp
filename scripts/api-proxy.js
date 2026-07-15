@@ -85,17 +85,29 @@ http
 		const target = new URL(route.base)
 		const upstreamPath = target.pathname + req.url.slice(prefix.length)
 
+		// 不把浏览器的 Origin/Referer 转发给上游：部分上游（如阿里云网关）看到 Origin 会
+		// 自己生成一套 CORS 响应头，和下面注入的 CORS_HEADERS 叠成两个
+		// Access-Control-Allow-Origin，浏览器视为非法 CORS 响应直接拒收。
+		const fwdHeaders = { ...req.headers, host: target.hostname, authorization: `Bearer ${route.key}` }
+		delete fwdHeaders.origin
+		delete fwdHeaders.referer
+
 		const options = {
 			hostname: target.hostname,
 			port: 443,
 			path: upstreamPath,
 			method: req.method,
 			// 真实 key 由代理注入，完全覆盖客户端传来的 Authorization——客户端此后不发送真实 key。
-			headers: { ...req.headers, host: target.hostname, authorization: `Bearer ${route.key}` },
+			headers: fwdHeaders,
 		}
 
 		const upstream = https.request(options, (upRes) => {
-			res.writeHead(upRes.statusCode, { ...upRes.headers, ...CORS_HEADERS })
+			// 同理：剥掉上游可能带回的 access-control-* 头，CORS 只由本代理一处负责。
+			const resHeaders = { ...upRes.headers }
+			for (const name of Object.keys(resHeaders)) {
+				if (name.toLowerCase().startsWith('access-control-')) delete resHeaders[name]
+			}
+			res.writeHead(upRes.statusCode, { ...resHeaders, ...CORS_HEADERS })
 			upRes.pipe(res)
 		})
 

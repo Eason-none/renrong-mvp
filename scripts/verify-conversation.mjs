@@ -134,6 +134,67 @@ assertTrue(
 );
 assertEqual(conversation.getConversation(neverArchived.id).archived, false, "AC3: 没有任何图鉴100%事件发生时，对话保持未归档");
 
+// --- 归档进行中锁（2026-07-13 修复：并发双归档产生两条相似手记页）---
+memory.clear();
+seedCompletionEvent("ce_race", "push_003");
+const raceConv = conversation.createConversation("ce_race");
+conversation.addUserMessage(raceConv.id, "这段对话会被并发归档两次");
+let raceGenCalls = 0;
+const slowSummary = async () => {
+	raceGenCalls += 1;
+	await new Promise((r) => setTimeout(r, 30)); // 模拟 LLM 摘要延迟——竞态窗口
+	return "同一段对话的摘要";
+};
+// 模拟真机时序：""返回"退出的后台归档还在飞，用户点开回顾触发被动归档
+await Promise.all([
+	conversation.archiveConversation(raceConv.id, slowSummary),
+	conversation.archiveConversation(raceConv.id, slowSummary),
+]);
+assertEqual(raceGenCalls, 1, "归档锁【核心】: 并发两次归档，摘要生成只实际调用1次");
+assertEqual(
+	get(KEYS.COMPLETION_SUMMARIES, []).filter((s) => s.completion_event_id === "ce_race").length,
+	1,
+	"归档锁【核心】: storage里最终只有1份摘要（不再出现两条相似手记页）"
+);
+// 锁释放后重复调用仍是幂等 no-op（archived 已置位）
+await conversation.archiveConversation(raceConv.id, slowSummary);
+assertEqual(raceGenCalls, 1, "归档锁: 锁释放后再调仍走 archived 幂等，无第2次生成");
+
+// --- 存量重复摘要清理（dedupeCompletionSummaries）---
+const dupSummaries = get(KEYS.COMPLETION_SUMMARIES, []);
+dupSummaries.push({ ...dupSummaries[0], id: "cs_dup_late" }); // 人为造一条同事件的重复摘要
+set(KEYS.COMPLETION_SUMMARIES, dupSummaries);
+const removed = conversation.dedupeCompletionSummaries();
+assertEqual(removed, 1, "去重: 同 completion_event_id 的重复摘要被清掉1条");
+const keptList = get(KEYS.COMPLETION_SUMMARIES, []).filter((s) => s.completion_event_id === "ce_race");
+assertEqual(keptList.length, 1, "去重: 只剩1份");
+assertTrue(keptList[0].id !== "cs_dup_late", "去重: 保留的是最早写入的那份");
+assertEqual(conversation.dedupeCompletionSummaries(), 0, "去重: 幂等，第二次跑零删除");
+
+// --- 照片收齐（2026-07-13 多图拼贴）：归档存全部用户图片，photo_thumb 仍是首图 ---
+memory.clear();
+seedCompletionEvent("ce_ph", "push_003");
+const phConv = conversation.createConversation("ce_ph");
+conversation.addUserMessage(phConv.id, "两张图", ["data:image/png;base64,AA", "data:image/png;base64,BB"]);
+conversation.addAssistantMessage(phConv.id, "看到了");
+conversation.addUserMessage(phConv.id, "又一张", ["data:image/png;base64,CC"]);
+await conversation.archiveConversation(phConv.id, async () => "照片页");
+const phSummary = get(KEYS.COMPLETION_SUMMARIES, []).find((s) => s.completion_event_id === "ce_ph");
+assertEqual(phSummary.photo_thumbs, ["data:image/png;base64,AA", "data:image/png;base64,BB", "data:image/png;base64,CC"], "照片收齐: photo_thumbs按发送顺序含全部图片");
+assertEqual(phSummary.photo_thumb, "data:image/png;base64,AA", "照片收齐: photo_thumb仍为首图（兼容）");
+assertEqual(conversation.getSummaryPhotos(phSummary), phSummary.photo_thumbs, "照片收齐: getSummaryPhotos返回完整列表");
+assertEqual(conversation.getSummaryPhotos({ photo_thumb: "x" }), ["x"], "照片收齐: 旧单图数据归一为数组");
+
+// 存量回填：老摘要没有 photo_thumbs，dedupe 时从归档对话反查补齐
+const backfillList = get(KEYS.COMPLETION_SUMMARIES, []).map((s) => {
+	const { photo_thumbs, ...legacy } = s;
+	return legacy; // 人为退回旧形状
+});
+set(KEYS.COMPLETION_SUMMARIES, backfillList);
+conversation.dedupeCompletionSummaries();
+const backfilled = get(KEYS.COMPLETION_SUMMARIES, []).find((s) => s.completion_event_id === "ce_ph");
+assertEqual(backfilled.photo_thumbs, ["data:image/png;base64,AA", "data:image/png;base64,BB", "data:image/png;base64,CC"], "回填: 启动清理从归档对话补齐photo_thumbs");
+
 if (failed) {
 	console.error("\nTask9 conversation 断言失败");
 	process.exit(1);

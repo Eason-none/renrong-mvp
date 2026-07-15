@@ -5,7 +5,8 @@
     "hook": "今天的路和你以为的一样吗？",
     "time": "通勤途中",
     "instructions": "在今天的通勤过程中，选一件你通常会忽略的事去观察：可能是某一段墙上的涂鸦、某个广告牌的奇怪措辞、某位乘客的表情……只是看，不用做任何事。",
-    "scene_tags": ["transit", "walking"]
+    "scene_tags": ["transit", "walking"],
+    "moments": ["morning", "evening"]
   },
   {
     "id": "dt-003",
@@ -85,7 +86,8 @@
     "hook": "不是日记，就是三件事，任何事都算",
     "time": "5分钟",
     "instructions": "在今天结束前，用手机备忘录或纸，写下今天发生的三件事——可以是「中午的饭不太好吃」「同事说了句有意思的话」「路上看到一只猫」。不需要有意义，就是记录。",
-    "scene_tags": ["home", "general"]
+    "scene_tags": ["home", "general"],
+    "moments": ["evening", "late-night"]
   },
   {
     "id": "dt-014",
@@ -125,7 +127,8 @@
     "hook": "你的房间关掉大灯会变成什么样？",
     "time": "晚上，10分钟",
     "instructions": "关掉顶灯，只开台灯、小夜灯，或者拉开窗帘用窗外的光。在这个光线里待10分钟——读书、发呆、躺着都行。不用刻意做什么，就感受一下同一个房间在不同光线下的样子。",
-    "scene_tags": ["home"]
+    "scene_tags": ["home"],
+    "moments": ["evening", "late-night"]
   },
   {
     "id": "dt-019",
@@ -325,7 +328,8 @@
     "hook": "今晚有月亮吗？你可能真不知道",
     "time": "1分钟",
     "instructions": "今天晚上在外面的时候，抬头找一找月亮——在哪个方向、是圆是缺。找不到也算完成，那说明今晚是阴天，这也是一种天气。",
-    "scene_tags": ["walking", "transit", "general"]
+    "scene_tags": ["walking", "transit", "general"],
+    "moments": ["evening", "late-night"]
   },
   {
     "id": "dt-047",
@@ -358,14 +362,6 @@
     "time": "5分钟",
     "instructions": "把桌上的东西挪一挪——杯子换个位置，常用的东西换到另一边。用一天试试，不顺手再换回来。",
     "scene_tags": ["workspace", "home", "classroom"]
-  },
-  {
-    "id": "push_002",
-    "title": "数一数视野里的红色",
-    "hook": "现在你视野里有几处红色？先猜一个数再数。",
-    "time": "1分钟",
-    "instructions": "就在你现在坐的地方，先猜猜视野里能找到几处红色，再数数看。猜中猜不中都行，一个都没找到也是一种发现。",
-    "scene_tags": ["workspace", "classroom", "home", "general"]
   },
   {
     "id": "push_003",
@@ -493,7 +489,8 @@
     "hook": "地上有个影子的形状，值得停三秒。",
     "time": "1-2分钟",
     "instructions": "走路时留意地上、墙上出现的影子，找一个形状特别或者好玩的影子看一会儿——树枝投下来的、栏杆投下来的，都行。",
-    "scene_tags": ["walking"]
+    "scene_tags": ["walking"],
+    "weather_affinity": ["sunny"]
   },
   {
     "id": "push_028",
@@ -525,7 +522,8 @@
     "hook": "有一块光斑正落在什么东西上，它在慢慢挪。",
     "time": "1-2分钟",
     "instructions": "看到阳光或灯光在墙上、桌上落了一块光斑的话，看它一会儿——它其实在很慢地挪。",
-    "scene_tags": ["home", "workspace", "classroom", "general"]
+    "scene_tags": ["home", "workspace", "classroom", "general"],
+    "weather_affinity": ["sunny"]
   },
   {
     "id": "push_033",

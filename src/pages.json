@@ -9,13 +9,13 @@
 		{
 			"path": "pages/explore/explore",
 			"style": {
-				"navigationBarTitleText": "丰荣探索"
+				"navigationBarTitleText": "丰容探索"
 			}
 		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "人类丰荣指北",
+		"navigationBarTitleText": "人类丰容指北",
 		"navigationBarBackgroundColor": "#F8F8F8",
 		"backgroundColor": "#F8F8F8"
 	},
@@ -30,7 +30,7 @@
 			},
 			{
 				"pagePath": "pages/explore/explore",
-				"text": "丰荣探索"
+				"text": "丰容探索"
 			}
 		]
 	}

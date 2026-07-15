@@ -30,7 +30,8 @@ export function getCollectionItemById(itemId) {
 
 // 按场景标签抽取每日任务候选（daily-task-content spec）
 // sceneTags: string[]（用户偏好标签集合）；excludeIds: string[]（已在 DailyTaskPool 中的 id）
-export function getDailyTaskCandidates(sceneTags, excludeIds = []) {
+// count: 候选条数上限，默认 3（日推卡片）；即时抽取传大窗口以便软优先有得挑（add-instant-moment-fit）
+export function getDailyTaskCandidates(sceneTags, excludeIds = [], count = 3) {
 	const all = dailyTasksRaw.filter((t) => !excludeIds.includes(t.id));
 
 	function shuffle(arr) {
@@ -49,9 +50,9 @@ export function getDailyTaskCandidates(sceneTags, excludeIds = []) {
 
 	const generalPool = all.filter((t) => t.scene_tags.includes("general") && !matched.some((m) => m.id === t.id));
 
-	const picked = shuffle(matched).slice(0, 3);
-	if (picked.length < 3) {
-		const need = 3 - picked.length;
+	const picked = shuffle(matched).slice(0, count);
+	if (picked.length < count) {
+		const need = count - picked.length;
 		picked.push(...shuffle(generalPool).slice(0, need));
 	}
 	return picked;

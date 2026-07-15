@@ -18,11 +18,12 @@
 - **THEN** `anon_id` 不变，且这些信息不出现在任何上报载荷中
 
 ### Requirement: 最小事件集
-系统 SHALL 且 SHALL ONLY 上报以下三个事件；SHALL NOT 上报任何页面访问、中间步骤、点击或其他行为事件：
+系统 SHALL 且 SHALL ONLY 上报以下四个事件；SHALL NOT 上报任何页面访问、中间步骤、点击或其他行为事件：
 
 1. `session_start`：App onShow 时（含冷启动与后台切回），无业务属性。
 2. `task_completed`：`createCompletionEvent` 成功创建完成事件时，携带 `content_type`、`content_id`、`collection_id`（非图鉴条目时为 null）。
 3. `review_opened`：用户点开图鉴回顾入口时（无论快照是否已生成、生成是否成功），携带 `collection_id`。
+4. `chat_engaged`（2026-07-12 新增，聊聊率分子）：对话中**第一条用户消息**发出时（`user_message_count` 0→1），每个 Conversation 至多一次，携带所属完成事件的 `content_type`、`content_id`、`collection_id`。口径 SHALL 以实质发言为准：点"聊聊"进入但未发消息（含随后直接"说完了"归档的空对话）SHALL NOT 上报本事件——聊聊率 = 有 `chat_engaged` 的完成事件 / `task_completed`，空进空出不入分子。
 
 #### Scenario: 完成图鉴条目
 - **WHEN** 用户对某图鉴条目点"做完啦"，本地 CompletionEvent 创建成功
@@ -39,6 +40,14 @@
 #### Scenario: 切后台返回
 - **WHEN** 用户将小程序切至后台后再切回
 - **THEN** 上报一次 `session_start`（天级去重是查询口径的职责，客户端不去重）
+
+#### Scenario: 真正开口才算聊聊
+- **WHEN** 用户完成任务后点"聊聊"进入对话并发出第一条消息
+- **THEN** 上报一次 `chat_engaged`；同一对话继续发第二、三条消息不再重复上报
+
+#### Scenario: 空对话不入分子（防聊聊率虚高）
+- **WHEN** 用户点"聊聊"进入对话，一条消息都没发就点"说完了"或退出（对话可能仍被归档）
+- **THEN** 不上报 `chat_engaged`
 
 ### Requirement: 隐私边界
 上报载荷 SHALL ONLY 包含：`anon_id`、事件名、`content_type`、`content_id`、`collection_id`、`client_ts`。以下数据 SHALL NOT 以任何形式出现在上报中：用户称呼、生日、场景标签、对话文本、摘要、回顾快照、位置、天气。小程序隐私保护指引 SHALL 声明"使用记录"收集项。

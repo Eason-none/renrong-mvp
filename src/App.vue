@@ -1,9 +1,28 @@
 <script>
 import { flushQueue, track } from './state/analytics.js'
+import { migrateOversizedConversationImages } from './state/imageMigration.js'
+import { dedupeCompletionSummaries } from './state/conversation.js'
 
 export default {
   onLaunch: function () {
     console.log('App Launch')
+    // #ifdef MP-WEIXIN
+    // 初始化微信云开发 SDK：小程序端 LLM 请求经 wx.cloud.callFunction 打到云函数 llmProxy，
+    // 真实 key 藏在云函数环境变量里。env 为云开发环境 ID。
+    if (wx.cloud) {
+      wx.cloud.init({ env: 'cloud1-d5g1184gm42fa15f4', traceUser: true })
+    } else {
+      console.error('wx.cloud 不可用：请确认基础库版本 ≥ 2.2.3 且已开通云开发')
+    }
+    // #endif
+    // 存量原图迁移：一次性幂等，不阻塞启动（diary-trace 1.5）
+    migrateOversizedConversationImages().catch((err) => console.error('image migration failed:', err))
+    // 归档竞态曾产生的重复手记页一次性收敛（幂等，无重复零写入）
+    try {
+      dedupeCompletionSummaries()
+    } catch (err) {
+      console.error('dedupe summaries failed:', err)
+    }
   },
   onShow: function () {
     // 先冲待发队列再报本次 session_start（specs/analytics-events：失败事件有界重发）。

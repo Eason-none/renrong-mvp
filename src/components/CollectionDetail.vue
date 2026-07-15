@@ -27,6 +27,7 @@
         </view>
         <view v-if="!doneItemIds.includes(item.id)" class="collection-detail__item-arrow">›</view>
         <view v-else-if="canChat(item)" class="collection-detail__item-chat">聊聊 ›</view>
+        <view v-else-if="traceItemIds.includes(item.id)" class="collection-detail__item-chat">回看 ›</view>
       </view>
     </template>
 
@@ -47,12 +48,20 @@
 
     <template v-else-if="step === 'invite'">
       <view class="collection-detail__invite">
-        <view class="ritual-seal">✦</view>
-        <view class="collection-detail__invite-text">{{ inviteText }}</view>
-        <view class="collection-detail__actions">
-          <view class="collection-detail__btn collection-detail__btn--primary" hover-class="u-press" @tap="startChat">聊聊</view>
-          <view class="collection-detail__btn" hover-class="u-press" @tap="backToList">跳过</view>
-        </view>
+        <CompletionBeat v-if="!beatDone" @done="beatDone = true" />
+        <template v-else>
+          <!-- 同 index.vue 两处邀请位：首次遇到聊聊/跳过时讲清"记录的回报"，同一 hintKey 全局只出一次 -->
+          <FirstTimeHint
+            hint-key="chat-invite"
+            text="这里聊到的话、拍下的照片，都会留进你的手记。说得越具体、带上照片，之后的回忆和图鉴回顾就越详实。跳过也没关系，之后点开这件完成的小事还能补聊。"
+          />
+          <view class="ritual-seal">✦</view>
+          <view class="collection-detail__invite-text">{{ inviteText }}</view>
+          <view class="collection-detail__actions">
+            <view class="collection-detail__btn collection-detail__btn--primary" hover-class="u-press" @tap="startChat">聊聊</view>
+            <view class="collection-detail__btn" hover-class="u-press" @tap="backToList">跳过</view>
+          </view>
+        </template>
       </view>
     </template>
 
@@ -62,19 +71,31 @@
       :content-title="selectedItem.title"
       :instructions="selectedItem.instructions"
       :previous-summary="previousSummary"
-      layer="collection"
       @close="onChatClose"
+    />
+
+    <TracePage
+      v-if="tracePage"
+      :title="tracePage.title"
+      :completed-at="tracePage.completedAt"
+      :summary-text="tracePage.summaryText"
+      :photo-thumb="tracePage.photoThumb"
+      :photos="tracePage.photos"
+      @close="tracePage = null"
     />
   </view>
 </template>
 
 <script>
 import { getCollectionById } from '@/content/library.js'
-import { createCompletionEvent, COMPLETION_INVITE_TEXT } from '@/state/completionEvent.js'
+import { createCompletionEvent, COMPLETION_INVITE_TEXT, getCompletionEvent } from '@/state/completionEvent.js'
 import { get, KEYS } from '@/state/storage.js'
-import { createConversation, getLatestSummaryForContent, getConversationByCompletionEventId, archiveConversation } from '@/state/conversation.js'
+import { createConversation, getLatestSummaryForContent, getConversationByCompletionEventId, archiveConversation, getDiaryPageForEvent, getSummaryPhotos } from '@/state/conversation.js'
 import { generateSummaryText } from '@/api/deepseek.js'
 import ChatView from '@/components/ChatView.vue'
+import TracePage from '@/components/TracePage.vue'
+import CompletionBeat from '@/components/CompletionBeat.vue'
+import FirstTimeHint from '@/components/FirstTimeHint.vue'
 
 const TYPE_LABELS = { perception: '感知', event: '事件' }
 
@@ -87,16 +108,19 @@ function isItemLocked(completionEventId) {
   return !!conv && (conv.archived || conv.user_message_count > 0)
 }
 
+function getCollectionItemEvents(collectionId) {
+  return get(KEYS.COMPLETION_EVENTS, []).filter((e) => e.content_type === 'collection_item' && e.collection_id === collectionId)
+}
+
 export default {
   name: 'CollectionDetail',
-  components: { ChatView },
+  components: { ChatView, TracePage, CompletionBeat, FirstTimeHint },
   props: {
     collectionId: { type: String, required: true },
   },
   emits: ['close', 'changed'],
   data() {
-    const events = get(KEYS.COMPLETION_EVENTS, [])
-      .filter((e) => e.content_type === 'collection_item' && e.collection_id === this.collectionId)
+    const events = getCollectionItemEvents(this.collectionId)
     const itemEventMap = {}
     for (const e of events) itemEventMap[e.content_id] = e.id // 同一条做过多次时取最后写入（时间最新）的事件
     return {
@@ -108,10 +132,14 @@ export default {
       itemEventMap,
       // 已锁定（不显示"聊聊"）的条目，判据见 isItemLocked。仅"进了没说话就退"的空对话保留补聊入口。
       lockedItemIds: events.filter((e) => isItemLocked(e.id)).map((e) => e.content_id),
+      // 有日记页（重逢弹层可打开）的条目——trace-reencounter：只对这些条目展示"回看"入口
+      traceItemIds: events.filter((e) => !!getDiaryPageForEvent(e)).map((e) => e.content_id),
       inviteText: COMPLETION_INVITE_TEXT,
       completionEventId: null,
       conversationId: null,
       previousSummary: null,
+      tracePage: null, // {title, completedAt, summaryText, photoThumb} | null
+      beatDone: false, // completion-beat：只在真正"做完啦"（markDone）时为false，补聊（reChat）直接跳过
     }
   },
   computed: {
@@ -120,30 +148,48 @@ export default {
     },
   },
   methods: {
-    // 未完成 -> 进内容卡走完整流程；做完啦但还没真正聊过 -> 补聊；已经聊过 -> 锁定不响应
+    // 未完成 -> 进内容卡走完整流程；做完啦但还没真正聊过 -> 补聊；已锁定 -> 有页则重逢，无页不响应
     onRowTap(item) {
       if (!this.doneItemIds.includes(item.id)) {
         this.chooseItem(item)
         return
       }
-      if (this.lockedItemIds.includes(item.id)) return
+      if (this.lockedItemIds.includes(item.id)) {
+        this.openTrace(item)
+        return
+      }
       this.reChat(item)
     },
     canChat(item) {
       return this.doneItemIds.includes(item.id) && !this.lockedItemIds.includes(item.id)
     },
-    // 补聊：复用该条已有的 completionEventId，不新建完成事件（否则会重复计完成度/重复触发回顾）
+    // 重逢：把该条目对应的日记页（如果有）以弹层展示；没有页时静默不响应，不做任何"缺页"提示
+    openTrace(item) {
+      const eventId = this.itemEventMap[item.id]
+      const event = eventId ? getCompletionEvent(eventId) : null
+      const page = getDiaryPageForEvent(event)
+      if (!page) return
+      this.tracePage = {
+        title: item.title,
+        completedAt: page.completed_at,
+        summaryText: page.summary_text,
+        photoThumb: page.photo_thumb ?? null,
+        photos: getSummaryPhotos(page),
+      }
+    },
+    // 补聊：复用该条已有的 completionEventId，不新建完成事件（否则会重复计完成度/重复触发回顾）。
+    // 补聊不是"做完啦"这一刻，不放完成一拍——直接进邀请。
     reChat(item) {
       this.selectedItem = item
       this.completionEventId = this.itemEventMap[item.id]
       this.previousSummary = getLatestSummaryForContent(item.id)?.summary_text ?? null
+      this.beatDone = true
       this.step = 'invite'
     },
     refreshLocked() {
-      this.lockedItemIds = get(KEYS.COMPLETION_EVENTS, [])
-        .filter((e) => e.content_type === 'collection_item' && e.collection_id === this.collectionId)
-        .filter((e) => isItemLocked(e.id))
-        .map((e) => e.content_id)
+      const events = getCollectionItemEvents(this.collectionId)
+      this.lockedItemIds = events.filter((e) => isItemLocked(e.id)).map((e) => e.content_id)
+      this.traceItemIds = events.filter((e) => !!getDiaryPageForEvent(e)).map((e) => e.content_id)
     },
     chooseItem(item) {
       this.selectedItem = item
@@ -164,6 +210,7 @@ export default {
       // 回顾不在这里触发（defer-review-to-first-view）：快照在用户首次点开回顾时
       // 由 ReviewView 惰性生成，这样最后这条的聊聊也来得及进入素材。这里只需通知刷新。
       this.$emit('changed')
+      this.beatDone = false
       this.step = 'invite'
     },
     startChat() {
@@ -255,18 +302,18 @@ export default {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  padding: 32rpx 0 8rpx;
-  margin-bottom: 4rpx;
+  padding: 32rpx 24rpx 12rpx 0;
+  margin-bottom: 0;
 }
 
 .collection-detail__back-arrow {
-  font-size: 32rpx;
+  font-size: 34rpx;
   color: var(--c-primary);
   line-height: 1;
 }
 
 .collection-detail__back-label {
-  font-size: 28rpx;
+  font-size: 30rpx;
   color: var(--c-primary);
 }
 

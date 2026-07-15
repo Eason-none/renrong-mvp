@@ -1,5 +1,7 @@
 <template>
-  <view v-if="visible" class="first-hint">
+  <!-- @tap.stop：这是全屏模态，点击不能漏给底下的界面——否则在 TracePage 这类
+       "根节点点击即关闭"的弹层里，点「知道了」会连带把弹层一起关掉 -->
+  <view v-if="visible" class="first-hint" @tap.stop>
     <view class="first-hint__sheet">
       <view class="first-hint__text">{{ text }}</view>
       <view class="first-hint__btn" hover-class="u-press" @tap="dismiss">知道了</view>
@@ -12,12 +14,14 @@ import { hasSeenHint, markHintSeen } from '@/state/onboardingHints.js'
 
 // 首次引导气泡：挂在任意界面上，同一 hintKey 全生命周期只弹一次。
 // 展示时机由父组件的渲染条件控制（比如"已领取列表非空时"），本组件只管已读判定和关闭。
+// 关闭时发 dismiss 事件——需要"一个气泡看完再出下一个"的排队场景（如聊天里的照片说明）用它接力。
 export default {
   name: 'FirstTimeHint',
   props: {
     hintKey: { type: String, required: true },
     text: { type: String, required: true },
   },
+  emits: ['dismiss'],
   data() {
     return {
       visible: !hasSeenHint(this.hintKey),
@@ -27,6 +31,7 @@ export default {
     dismiss() {
       markHintSeen(this.hintKey)
       this.visible = false
+      this.$emit('dismiss')
     },
   },
 }

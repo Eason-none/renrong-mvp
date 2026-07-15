@@ -7,7 +7,6 @@
     <view class="nav-badge__sheet" @tap.stop>
       <template v-if="!showPrivacy && !showBasicInfo">
         <view class="nav-badge__item" hover-class="u-press" @tap="openBasicInfo">基本信息</view>
-        <view class="nav-badge__item" hover-class="u-press" @tap="requestReminder">主动提醒（去开启提醒）</view>
         <view class="nav-badge__item" hover-class="u-press" @tap="openPrivacy">隐私政策</view>
         <view class="nav-badge__close" hover-class="u-press" @tap="close">关闭</view>
       </template>
@@ -29,15 +28,30 @@
 <script>
 import BasicInfoSettings from '@/components/BasicInfoSettings.vue'
 
-// product_handoff.md §6.2.1：MVP阶段占位文本，不是律师审定的正式条款——微信小程序上架要求
-// 必须有这个入口（平台合规底线），但条款内容本身在MVP验证使用流程阶段不是重点。
-const PRIVACY_POLICY_TEXT = `隐私政策（占位）
+// product_handoff.md §6.2.1：如实披露版（非律师审定，但需与真实数据流一致）。覆盖四条数据流：
+// ①本地存储 ②对话→第三方大模型 ③位置→第三方天气服务 ④匿名统计。联系方式已填真实邮箱；
+// 微信小程序后台"用户隐私保护指引"已另行配置（内容需与本文案保持一致）。
+const PRIVACY_POLICY_TEXT = `隐私政策
 
-本产品目前为开发验证阶段的最小可用版本，尚未正式上线。
+感谢你使用本产品。这里用直白的话，说明我们如何处理你的信息。
 
-当前版本的全部数据（图鉴解锁状态、完成度、对话记录、回顾内容等）只保存在你当前设备的本地存储里，不会上传到任何服务器，开发者也无法看到。
+一、保存在你设备本地的信息
+你的图鉴解锁状态、完成记录、对话内容、日记与回顾等，默认只保存在你当前设备的本地存储中，不会同步到云端账号。更换设备或清除小程序数据后，这些内容会一并丢失。
 
-正式上线后，本政策会替换为完整版本，说明届时会收集哪些信息、如何使用、如何保护，以及你可以如何管理自己的数据。`
+二、生成对话与文字时用到的第三方大模型
+当你与"见证者"聊天、归档生成日记摘要、或生成图鉴回顾时，你在对话中输入的文字与图片，会经由我们的服务器转发给第三方大模型服务（阿里云通义千问、DeepSeek）用于即时生成回应。这些内容仅用于本次生成，不会被用于训练模型或其他用途。请不要在对话中填写身份证号、银行卡号等敏感个人信息。
+
+三、位置与天气
+如果你授权位置权限，我们会把你的大致经纬度发送给第三方天气服务（和风天气）以获取所在城市与天气，用于在首页展示天气、并让每日推荐更贴合当天情境。你可以拒绝授权，拒绝后仅影响天气展示，不影响其他功能；我们不会保存或上传你的位置轨迹。
+
+四、匿名使用统计
+为了了解功能是否被使用，我们会收集少量匿名统计：一个与你身份无关的本地随机标识、发生的事件类型、涉及的内容编号和时间。其中不包含你的昵称、生日、对话文字，也不含任何微信身份信息，我们无法凭这些数据识别到你本人。
+
+五、我们不会做的事
+不收集你的通讯录、不追踪你的位置轨迹、不将你的信息出售给第三方。
+
+六、政策更新与联系方式
+本政策可能随功能调整而更新。如对隐私有疑问，可发送邮件至 yixin20011010@163.com 与我们联系。`
 
 export default {
   name: 'NavBar',
@@ -71,27 +85,6 @@ export default {
     closeBasicInfo() {
       this.showBasicInfo = false
       this.visible = false
-    },
-    // product_handoff.md §6.2.1：订阅状态的开关由用户在微信"服务通知"里管理，小程序这边
-    // 只能发起一次性订阅消息授权请求，做不到产品自己可控的开关——这里只负责发起请求。
-    // tmplId是微信小程序后台注册订阅消息模板后才会拿到的真实ID，当前没有已注册的模板，
-    // 留空时直接提示"还没配置"，不拿假ID去调用线上接口制造一个一定失败的网络请求。
-    requestReminder() {
-      // #ifdef MP-WEIXIN
-      const tmplId = import.meta.env.VITE_WX_SUBSCRIBE_TEMPLATE_ID
-      if (!tmplId) {
-        uni.showToast({ title: '提醒功能还没配置好，敬请期待', icon: 'none' })
-        return
-      }
-      uni.requestSubscribeMessage({
-        tmplIds: [tmplId],
-        success: () => uni.showToast({ title: '已开启提醒', icon: 'none' }),
-        fail: () => uni.showToast({ title: '没能开启，可以去微信"服务通知"里看看', icon: 'none' }),
-      })
-      // #endif
-      // #ifndef MP-WEIXIN
-      uni.showToast({ title: '提醒功能目前只在微信小程序内可用', icon: 'none' })
-      // #endif
     },
   },
 }
@@ -159,9 +152,10 @@ export default {
 }
 
 .nav-badge__privacy-back {
-  font-size: 28rpx;
+  font-size: 30rpx;
   color: var(--c-primary);
-  margin-bottom: 24rpx;
+  padding: 12rpx 24rpx 12rpx 0;
+  margin: -12rpx 0 12rpx;
 }
 
 .nav-badge__privacy-text {

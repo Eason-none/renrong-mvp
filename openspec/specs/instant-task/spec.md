@@ -4,14 +4,14 @@
 TBD - created by archiving change remove-pushflow-merge-instant-task. Update Purpose after archive.
 ## Requirements
 ### Requirement: 主页提供"现在就来一件"即时入口
-主页在呼吸引导完成后的常规布局中 SHALL 提供"现在就来一件"入口，与"今日任务候选"入口并列常驻；布局顶部 SHALL 显示标题「让我们做点什么有意思的小事」与副标题「希望你好好生活，别太焦虑」。点击入口后 SHALL 按用户 `BasicInfo.scene_tags` 从每日任务池抽取 1 条，直接以任务详情卡形态展示（title / time / instructions），无任何中间选择步骤。
+主页常规布局 SHALL 提供"现在就来一件"入口，与"今日任务候选"入口并列常驻；布局顶部 SHALL 显示标题「让我们做点什么有意思的小事」与副标题「希望你好好生活，别太焦虑」。（前置条件更新：主页常规布局不再依赖每次启动的呼吸引导，仅首次启动存在引导前置，见 breathing-entry。）点击入口后 SHALL 按用户 `BasicInfo.scene_tags` 从每日任务池抽取 1 条，直接以任务详情卡形态展示（title / time / instructions），无任何中间选择步骤。
 
 #### Scenario: 零决策抽取
 - **WHEN** 用户点击"现在就来一件"
 - **THEN** 立即展示 1 条任务详情卡，过程中不出现场景选择、候选列表或任何需要用户决策的界面
 
 #### Scenario: 场景三选交互不再存在
-- **WHEN** 用户完成呼吸引导进入主页
+- **WHEN** 用户进入主页常规布局
 - **THEN** 页面上不存在"想在哪儿做"场景选择界面及旧版推送卡片流程（PushFlow）
 
 ### Requirement: 即时任务抽取规则
@@ -30,11 +30,11 @@ TBD - created by archiving change remove-pushflow-merge-instant-task. Update Pur
 - **THEN** 展示温婉空态文案（大意：今天的都做过了，歇一歇也很好），不报错、不展示空白卡片
 
 ### Requirement: 即时任务完成流程复用每日任务闭环
-即时任务详情卡 SHALL 提供"做完啦"与"← 返回"操作，不出现"领取"概念。点击"做完啦" SHALL 直接创建 `content_type: "daily_task"` 完成事件并计入"今日已完成"区块，随后进入与每日任务一致的聊聊邀请流程（可聊可跳过，对话为推送层语义：退出不生成摘要）。点击"← 返回" SHALL 回到主页常规布局，该条目不进入 DailyTaskPool、不产生任何记录。
+即时任务详情卡 SHALL 提供"做完啦"与"← 返回"操作，不出现"领取"概念。点击"做完啦" SHALL 直接创建 `content_type: "daily_task"` 完成事件并计入"今日已完成"区块，随后进入与每日任务一致的完成一拍与聊聊邀请流程（可聊可跳过）。对话采用日记语义：退出时归档并生成摘要，成页规则遵循 diary-trace（无实质内容不成页）。点击"← 返回" SHALL 回到主页常规布局，该条目不进入 DailyTaskPool、不产生任何记录。
 
 #### Scenario: 完成并聊聊
-- **WHEN** 用户在即时任务卡点击"做完啦"后选择"聊聊"
-- **THEN** 进入对话；"说完了"退出后不生成完成摘要，任务出现在"今日已完成"
+- **WHEN** 用户在即时任务卡点击"做完啦"后选择"聊聊"，聊出具体内容后"说完了"
+- **THEN** 生成完成摘要（日记页），任务出现在"今日已完成"，该条目可点开重逢弹层
 
 #### Scenario: 返回不留痕
 - **WHEN** 用户点击"← 返回"离开即时任务卡

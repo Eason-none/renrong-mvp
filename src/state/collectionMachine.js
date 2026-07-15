@@ -1,4 +1,4 @@
-// 图鉴状态机 + 完成度计算 + 棘轮（product_handoff.md v8 §5.3.0，spec_v1.md §2.2）
+// 图鉴状态机 + 完成度计算 + 棘轮（product_handoff.md v8 §5.3.0，docs/archive/spec_v1.md §2.2）
 // 三态：locked -> active -> completed（completed 无任何退出路径）。
 // 最多同时 3 个 active；completed 不占激活位。
 // completion_pct 永远按当前真实分母（content 库里的 items.length）现算，不缓存，

@@ -12,6 +12,7 @@ node_modules
 dist
 *.local
 .env
+.env.production
 .claude/settings.local.json
 .claude/CLAUDE.md
 临时/
@@ -26,3 +27,4 @@ dist
 
 # 本地代码索引（codegraph init 生成，机器本地产物）
 .codegraph/
+/*.mp3

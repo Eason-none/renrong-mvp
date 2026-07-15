@@ -1,0 +1,7 @@
+{
+	"name": "llmProxy",
+	"version": "1.0.0",
+	"description": "微信云开发 LLM 反向代理云函数（Qwen + DeepSeek），真实 key 藏于云函数环境变量",
+	"main": "index.js",
+	"dependencies": {}
+}

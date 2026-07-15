@@ -58,13 +58,29 @@ export function getReviewSnapshots(collectionId) {
 		.sort((a, b) => a.sequence - b.sequence);
 }
 
+// 回顾页照片小图集（collection-review delta）：按完成时间排列该图鉴日记页里的照片缩略图。
+// 实时陈列，不是快照的一部分——不受棘轮约束，补聊带新照片也会自然出现。
+// 独立于summary_text是否为空：照片是否留住是另一回事，"无实质不成页"只管文字页。
+export function getCollectionPhotoThumbs(collectionId) {
+	const events = getCollectionItemEvents(collectionId);
+	const summaries = get(KEYS.COMPLETION_SUMMARIES, []);
+	const matched = [];
+	for (const event of events) {
+		const summary =
+			summaries.find((s) => s.completion_event_id === event.id) ??
+			summaries.find((s) => s.content_id === event.content_id && s.completed_at === event.completed_at);
+		if (summary?.photo_thumb) matched.push({ completedAt: event.completed_at, photoThumb: summary.photo_thumb });
+	}
+	return matched.sort((a, b) => a.completedAt - b.completedAt).map((m) => m.photoThumb);
+}
+
 // 同一 collectionId 的编排正在进行中时阻止重入——generateReviewText/archiveConversation 都是
 // 跨越 await 的异步调用，如果调用方（UI层）不小心重复触发本函数（比如重复点开回顾/重复的状态
 // 变更事件），两次调用会在第一次还没把棘轮置true之前都通过"未触发过"的检查，进而各自生成一份
 // sequence=1 快照——这是纯内存锁，不持久化，App重启即释放。
 // 局限（doubt-driven复核发现，记录为可接受的范围限制，不修复）：这把锁只防得住"同一进程内"的
 // 并发重入，防不住多个浏览器标签页/小程序多实例同时操作同一份storage的极端场景——
-// MVP成功标准明确是"开发者本人单会话跑通"（spec_v1.md §1），多标签页并发完全不在当前验证范围内，
+// MVP成功标准明确是"开发者本人单会话跑通"（docs/archive/spec_v1.md §1），多标签页并发完全不在当前验证范围内，
 // 为此做跨进程锁（比如把"进行中"标记也写进storage）属于当前阶段的过度设计。
 const pendingCollectionIds = new Set();
 

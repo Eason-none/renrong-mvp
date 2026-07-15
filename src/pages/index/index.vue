@@ -1,14 +1,56 @@
 <template>
   <view class="page">
     <NavBar />
+
+    <!-- 手记册入口：有页才出现，线条小册子图标，与 ⚙ 同尺寸并排其左侧；无红点无 badge（记忆不追人）。
+         第一页诞生前整个入口不渲染（无空册子状态）。 -->
+    <view
+      v-if="hasDiaryPages"
+      class="diary-entry"
+      :class="{ 'diary-entry--wiggling': guideWiggling }"
+      hover-class="u-press"
+      @tap="openDiaryNotebook"
+    >
+      <!-- 注意力交接涟漪（引导关闭后一次性播放，之后永远安静） -->
+      <view v-if="guideRippling" class="dn-ripple dn-ripple--1"></view>
+      <view v-if="guideRippling" class="dn-ripple dn-ripple--2"></view>
+      <!-- 线条小册子：纯 CSS 绘制（mp-weixin 的 <image> 不渲染 SVG data-URI，改用 view+border 保证真机可见）。
+           单色走 --c-subtle，与 ⚙ 同色；封面 + 书脊 + 两道书写横线。 -->
+      <view class="dn-book">
+        <view class="dn-book__spine"></view>
+        <view class="dn-book__line dn-book__line--1"></view>
+        <view class="dn-book__line dn-book__line--2"></view>
+      </view>
+    </view>
+
+    <!-- 手记册首启引导（2026-07-13 用户定稿 A+B，动效样机 artifact dab883db）：
+         挖孔聚光蒙层锚定右上角入口 + 指向式引导卡；关闭后涟漪+摇曳把注意力交回图标。
+         一次性（onboardingHintsSeen: diary-notebook-entry-v2），点亮孔里的图标=关闭并直接进册子。 -->
+    <view
+      v-if="showNotebookGuide"
+      class="nb-guide"
+      :class="{ 'nb-guide--leaving': guideLeaving, 'nb-guide--measuring': !guideReady }"
+    >
+      <view class="nb-guide__mask" :style="guideMaskStyle"></view>
+      <view v-if="guideHole" class="nb-guide__ring" :style="guideRingStyle"></view>
+      <view v-if="guideHole" class="nb-guide__hit" :style="guideRingStyle" @tap="dismissNotebookGuide(true)"></view>
+      <view class="nb-guide__callout" :style="guideCalloutStyle">
+        <view v-if="guideHole" class="nb-guide__arrow" :style="guideArrowStyle"></view>
+        <view class="nb-guide__text">你的手记册长出了第一页，就收在这里，想它了随时翻回来看看。册子里的每一页和图鉴的回顾，点开都有「保存这一页」，能做成带照片的图文卡片；做完但没聊、没留下内容的，不会成页，也就做不成卡片——想留卡片的话，聊一句或发张照片就够了。</view>
+        <view class="nb-guide__btn" hover-class="u-press" @tap="dismissNotebookGuide(false)">知道了</view>
+      </view>
+    </view>
+
+    <DiaryNotebook v-if="showDiaryNotebook" @close="showDiaryNotebook = false" />
+
     <BreathingGuide v-if="!breathingDone" @done="onBreathingDone" />
     <template v-else>
       <!-- 主区域（remove-pushflow：场景三选已移除，场景信息来自档案 scene_tags） -->
-      <template v-if="!dailyTaskStep && !instantStep">
+      <template v-if="!flowActive">
         <!-- 没有任务区块时整组居中（与脚注的 margin-top:auto 平分空间）；有任务后回到顶部布局 -->
         <view class="home-header" :class="{ 'home-header--centered': !myTasks.length && !todayCompleted.length }">
           <view class="home-header__title">让我们做点什么有意思的小事</view>
-          <view class="home-header__subtitle">希望你好好生活，别太焦虑</view>
+          <view class="home-header__subtitle">希望你好好生活，和日子常见常新</view>
         </view>
 
         <!-- 即时入口：零决策抽一条，承接旧推送层"焦虑那一刻立刻做一件小事"的职责 -->
@@ -16,10 +58,24 @@
 
         <!-- 每日任务入口（常驻，可随时重新打开日推卡片） -->
         <view class="daily-card-entry" hover-class="u-press" @tap="reopenDailyCard">今日任务候选</view>
+
+        <!-- 三件幸福小事：常驻轻入口，聊即是做，无完成态无角标（three-good-things） -->
+        <view class="daily-card-entry" hover-class="u-press" @tap="openThreeGoodThings">今天有什么让你觉得幸福的小事</view>
+
+        <!-- 静一下：呼吸引导退成主动入口（breathing-entry），无角标无记录，点了才展开 -->
+        <view class="quiet-entry" hover-class="u-press" @tap="showBreathingOverlay = true">
+          <text class="quiet-entry__icon">◡</text>
+          <text class="quiet-entry__label">静一下</text>
+        </view>
+        <FirstTimeHint
+          v-if="!showBasicInfoOverlay && !showDailyCard"
+          hint-key="quiet-entry"
+          text="“静一下”是一段跟着呼吸慢下来的小引导，想歇一会儿的时候可以点开。"
+        />
       </template>
 
       <!-- 已领取任务区块 -->
-      <view v-if="!dailyTaskStep && !instantStep && myTasks.length" class="daily-tasks-block">
+      <view v-if="!flowActive && myTasks.length" class="daily-tasks-block">
         <FirstTimeHint hint-key="claimed-tasks" text="选择了就去做吧，请体验这个过程。做完可以回来点击“做完啦”。" />
         <view class="daily-tasks-block__title">我的日常任务</view>
         <DailyTaskItem
@@ -31,7 +87,7 @@
       </view>
 
       <!-- 今日已完成区块 -->
-      <view v-if="!dailyTaskStep && !instantStep && todayCompleted.length" class="daily-tasks-block">
+      <view v-if="!flowActive && todayCompleted.length" class="daily-tasks-block">
         <view class="daily-tasks-block__title">今日已完成</view>
         <view
           v-for="task in todayCompleted"
@@ -47,7 +103,7 @@
            有任务区块时自然跟在其后——空白从"没做完"变成"册页的留白"。
            点一下植物：一阵风刮过，叶片逐片摇曳，标语随风换一句。
            （压花内联绘制而非独立组件：小程序端自定义组件样式隔离会让它整个不渲染） -->
-      <view v-if="!dailyTaskStep && !instantStep" class="home-footer">
+      <view v-if="!flowActive" class="home-footer">
         <view class="home-footer__art" @tap="blowWind">
           <view class="sprig" :class="{ 'sprig--wind': windActive }">
             <view class="sprig__gust sprig__gust--1"></view>
@@ -62,105 +118,38 @@
             <view class="sprig__bud"></view>
           </view>
         </view>
-        <view class="home-footer__num">采集编号 {{ flyleafNum }}</view>
         <view class="home-footer__line" :class="{ 'home-footer__line--fading': lineFading }">{{ currentLine }}</view>
       </view>
 
-      <!-- 每日任务：详情卡片（与即时小事同款手贴卡：胶带+微旋+居中，操作沉到拇指区） -->
-      <view v-if="dailyTaskStep === 'detail'" class="push-flow push-flow--fill">
-        <view class="push-flow__stage">
-          <view class="push-flow__cardwrap">
-            <view class="push-flow__card push-flow__card--pinned">
-              <view class="push-flow__card-title">{{ activeTask.title }}</view>
-              <view class="push-flow__card-time">{{ activeTask.time }}</view>
-              <view class="push-flow__card-instructions">{{ activeTask.instructions }}</view>
-            </view>
-            <view class="push-flow__tape"></view>
-          </view>
-        </view>
-        <view class="push-flow__done-btn" hover-class="u-press" @tap="markDailyTaskDone">做完啦</view>
-        <view class="push-flow__back-link" hover-class="u-press" @tap="exitDailyTask">← 返回</view>
-        <view class="push-flow__remove-link" hover-class="u-press" @tap="removeTask">不想做了，移除</view>
-      </view>
-
-      <!-- 每日任务：聊聊邀请（完成时刻 = 情绪峰值，金色印记先落，再邀请） -->
-      <view v-if="dailyTaskStep === 'invite'" class="push-flow push-flow--center">
-        <view class="ritual-seal">✦</view>
-        <view class="push-flow__invite-text">{{ inviteText }}</view>
-        <view class="push-flow__actions">
-          <view class="push-flow__btn push-flow__btn--primary" hover-class="u-press" @tap="startDailyTaskChat">聊聊</view>
-          <view class="push-flow__btn" hover-class="u-press" @tap="exitDailyTask">跳过</view>
-        </view>
-      </view>
-
-      <!-- 每日任务：聊天 -->
-      <ChatView
-        v-if="dailyTaskStep === 'chat'"
-        :conversation-id="dailyTaskConversationId"
-        :content-title="activeTask.title"
-        :instructions="activeTask.instructions"
-        :previous-summary="null"
-        @close="exitDailyTask"
+      <!-- 每日任务完成流程 / 已完成条目补聊（DailyTaskFlow：detail → invite → chat；
+           拆分自本页面，push-flow 样式随组件走，见 styles/push-flow.css） -->
+      <DailyTaskFlow
+        v-if="dailyFlow"
+        :task="dailyFlow.task"
+        :initial-completion-event-id="dailyFlow.completionEventId"
+        :entry="dailyFlow.entry"
+        @completed="onFlowCompleted"
+        @close="onDailyFlowClose"
       />
 
-      <!-- 现在就来一件：手贴卡（居中微旋 + 纸胶带 = 刚贴进册子的一页；
-           操作沉在拇指区，中间空白是卡片四周的"桌面"，不再垫压花） -->
-      <view v-if="instantStep === 'card'" class="push-flow push-flow--fill">
-        <view class="push-flow__stage">
-          <!-- 胶带与卡片是兄弟节点：换卡时胶带先撕、卡片跟着翻走，各自独立动 -->
-          <view
-            v-if="instantTask"
-            class="push-flow__cardwrap"
-            :class="{
-              'push-flow__cardwrap--leaving': swapPhase === 'leaving',
-              'push-flow__cardwrap--entering': swapPhase === 'entering',
-            }"
-          >
-            <view class="push-flow__card push-flow__card--pinned">
-              <view class="push-flow__card-title">{{ instantTask.title }}</view>
-              <view class="push-flow__card-time">{{ instantTask.time }}</view>
-              <view class="push-flow__card-instructions">{{ instantTask.instructions }}</view>
-            </view>
-            <view class="push-flow__tape"></view>
-          </view>
-          <view v-else class="push-flow__card-empty">今天的都做过了，歇一歇也很好。</view>
-        </view>
+      <!-- 现在就来一件（InstantFlow：card → invite → chat，同上拆分） -->
+      <InstantFlow
+        v-if="instantActive"
+        :weather-text="cardWeatherText"
+        @completed="onFlowCompleted"
+        @close="onInstantClose"
+      />
 
-        <view class="push-flow__hint" v-if="instantExhausted">如果没有想做的可以深呼吸，喝点水，发发呆</view>
-
-        <view class="push-flow__actions" v-if="instantTask">
-          <view
-            class="push-flow__btn"
-            :class="{ 'push-flow__btn--disabled': instantExhausted }"
-            hover-class="u-press"
-            @tap="refreshInstant"
-          >
-            换一个
-          </view>
-        </view>
-
-        <view v-if="instantTask" class="push-flow__done-btn" hover-class="u-press" @tap="markInstantDone">做完啦</view>
-        <view class="push-flow__back-link" hover-class="u-press" @tap="exitInstant">← 返回</view>
-      </view>
-
-      <!-- 现在就来一件：聊聊邀请（同上，完成印记） -->
-      <view v-if="instantStep === 'invite'" class="push-flow push-flow--center">
-        <view class="ritual-seal">✦</view>
-        <view class="push-flow__invite-text">{{ inviteText }}</view>
-        <view class="push-flow__actions">
-          <view class="push-flow__btn push-flow__btn--primary" hover-class="u-press" @tap="startInstantChat">聊聊</view>
-          <view class="push-flow__btn" hover-class="u-press" @tap="exitInstant">跳过</view>
-        </view>
-      </view>
-
-      <!-- 现在就来一件：聊天（推送层语义：退出不生成摘要） -->
+      <!-- 三件幸福小事：聊即是做，专用开场白+system prompt（three-good-things） -->
       <ChatView
-        v-if="instantStep === 'chat'"
-        :conversation-id="instantConversationId"
-        :content-title="instantTask.title"
-        :instructions="instantTask.instructions"
+        v-if="threeGoodThingsStep === 'chat'"
+        :conversation-id="threeGoodThingsConversationId"
+        :content-title="threeGoodThingsTitle"
+        :instructions="threeGoodThingsInstructions"
         :previous-summary="null"
-        @close="exitInstant"
+        :opening-text-override="threeGoodThingsOpeningText"
+        :system-prompt-override="threeGoodThingsSystemPrompt"
+        @close="exitThreeGoodThings"
       />
     </template>
 
@@ -182,15 +171,23 @@
       @chat-completed="chatCompletedTask"
     />
 
-    <!-- 从日推卡片跳转的基本信息设置（独立遮罩） -->
-    <view v-if="showBasicInfoOverlay" class="basic-info-overlay">
-      <view class="basic-info-overlay__sheet">
-        <view class="basic-info-overlay__back" @tap="closeBasicInfoOverlay">← 返回</view>
-        <scroll-view class="basic-info-overlay__scroll" scroll-y>
-          <BasicInfoSettings @close="closeBasicInfoOverlay" />
-        </scroll-view>
-      </view>
+    <!-- 静一下：覆盖层复用呼吸引导，用完即走，不留任何状态/记录/埋点 -->
+    <view v-if="showBreathingOverlay" class="breathing-overlay">
+      <BreathingGuide @done="showBreathingOverlay = false" />
     </view>
+
+    <TracePage
+      v-if="tracePage"
+      :title="tracePage.title"
+      :completed-at="tracePage.completedAt"
+      :summary-text="tracePage.summaryText"
+      :photo-thumb="tracePage.photoThumb"
+      :photos="tracePage.photos"
+      @close="tracePage = null"
+    />
+
+    <!-- 从日推卡片跳转的基本信息设置（独立遮罩，已拆为组件） -->
+    <BasicInfoOverlay v-if="showBasicInfoOverlay" @close="closeBasicInfoOverlay" />
   </view>
 </template>
 
@@ -200,37 +197,84 @@ import BreathingGuide from '@/components/BreathingGuide.vue'
 import DailyCard from '@/components/DailyCard.vue'
 import DailyTaskItem from '@/components/DailyTaskItem.vue'
 import ChatView from '@/components/ChatView.vue'
-import BasicInfoSettings from '@/components/BasicInfoSettings.vue'
 import FirstTimeHint from '@/components/FirstTimeHint.vue'
+import { hasSeenHint, markHintSeen } from '@/state/onboardingHints.js'
+import TracePage from '@/components/TracePage.vue'
+import DiaryNotebook from '@/components/DiaryNotebook.vue'
+import DailyTaskFlow from '@/components/DailyTaskFlow.vue'
+import InstantFlow from '@/components/InstantFlow.vue'
+import BasicInfoOverlay from '@/components/BasicInfoOverlay.vue'
+import { hasAnyDiaryPage } from '@/state/diaryNotebook.js'
 import { get, set, KEYS } from '@/state/storage.js'
 import { getBasicInfo } from '@/state/basicInfo.js'
-import { getUncompletedTasks, completeTask, saveCompletedTask, getTodayCompleted, getPrevDayCompleted, clearPrevDayCompleted } from '@/state/dailyTaskPool.js'
+import { getUncompletedTasks, getTodayCompleted, getPrevDayCompleted, clearPrevDayCompleted } from '@/state/dailyTaskPool.js'
 import { getDailyTaskCandidates } from '@/content/library.js'
 import { getCity } from '@/api/location.js'
 import { getEnvironmentInfo } from '@/api/weather.js'
-import { createCompletionEvent, COMPLETION_INVITE_TEXT } from '@/state/completionEvent.js'
-import { createConversation } from '@/state/conversation.js'
+import { getCompletionEvent } from '@/state/completionEvent.js'
+import { getDiaryPageForEvent, getSummaryPhotos } from '@/state/conversation.js'
+import { archiveChatOnExit } from '@/utils/archiveChatOnExit.js'
+import { resolveTodayEntry, THREE_GOOD_THINGS_TITLE, THREE_GOOD_THINGS_SUMMARY_CONTEXT } from '@/state/threeGoodThings.js'
+import { buildThreeGoodThingsSystemPrompt } from '@/api/qwen.js'
 
 function getTodayDateStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// breathing-entry 5.2：存量用户推断——已经有基本信息或完成记录的，视为已经过了"第一次"，
+// 不用等一个新字段慢慢补数据。只在这个字段还没写过的时候用到（见 data() 里的调用点）。
+function hasPriorUsage() {
+  const info = getBasicInfo()
+  const hasBasicInfo = !!(info.player_id || info.birth_date || info.scene_tags?.length)
+  const hasCompletionEvents = get(KEYS.COMPLETION_EVENTS, []).length > 0
+  return hasBasicInfo || hasCompletionEvents
+}
+
 // 扉页标注语料（首页底部压花下的每日一句，"采集标注"叙事）。
-// 【占位】暂借日推卡的三句公函提醒轮换；正式语料由产品侧撰写后整组替换/扩充，
-// 语气须过 content_principles.md（公函式俏皮，不励志不鸡汤）。每日固定一句，不随进入次数变化。
+// 正式语料 25 句（2026-07-13 产品定稿，点叶子刮风轮换）。每日固定一句，不随进入次数变化。
 const FLYLEAF_LINES = [
-  '请重视自己的感受而非必须有产出的绩效。',
-  '请尝试在固有的工作和生活节奏之余做一些没意义但有意思的事。',
-  '请记住人生是一场体验。',
+  '你的存在即是意义',
+  '忧虑就像为自己不想要的东西祈祷',
+  '要么成功，要么学到经验',
+  '允许任何感受流经我，接受它，然后放下',
+  '你是树上最甜的苹果，但有的人只是不喜欢苹果',
+  '向外求求而不得，向内求生生不息',
+  '你无法说服别人爱上你，真正的爱是双向流动的',
+  '生活10%是发生在你身上的事，90%是你如何应对它',
+  '我愿意把每件发生在我身上的事看作生命赋予的礼物',
+  '凭风指引，且听风吟',
+  '用宏大世界来稀释痛苦，在微小事件中感受幸福',
+  '那些以为走不出来的雨季，成为滋养生命的河流',
+  '心平能愈三千疾',
+  '有了目的地才会迷路，我来地球只是散步',
+  '首先是自己，其次才是谁的谁',
+  '我的勇气永远是可再生资源',
+  '不做退缩的涟漪，不当徘徊的浮萍',
+  '不要相信手掌的纹路，要相信十指攥成拳的力量',
+  '我会成为潺潺的溪水，\n有一往无前的自信和绝不回头的勇气',
+  '别人的偏见和浮躁是他的课题，\n我的从容与成长是脚下的路',
+  '我睁开眼睛的那天，我就是世界的主角',
+  '快乐的意思是，你要赶快出发，去寻找生活的乐子',
+  '我不再需要答案，因为我决定做回自己',
+  '不要为任何人牺牲内心的宁静',
+  '人生难免会有下雨的日子，但终究会放晴',
 ]
 
 export default {
   name: 'IndexPage',
-  components: { NavBar, BreathingGuide, DailyCard, DailyTaskItem, ChatView, BasicInfoSettings, FirstTimeHint },
+  components: { NavBar, BreathingGuide, DailyCard, DailyTaskItem, ChatView, FirstTimeHint, TracePage, DiaryNotebook, DailyTaskFlow, InstantFlow, BasicInfoOverlay },
   data() {
+    // breathing-entry：呼吸引导只在真正的第一次启动强制出现。已持久化标记为true、或存量用户
+    // 推断命中时，直接跳过——推断命中的情况顺手把标记也落盘，往后不用再推断。
+    const introAlreadyDone = get(KEYS.BREATHING_INTRO_DONE, false)
+    const breathingDone = introAlreadyDone || hasPriorUsage()
+    if (breathingDone && !introAlreadyDone) {
+      set(KEYS.BREATHING_INTRO_DONE, true)
+    }
     return {
-      breathingDone: false,
+      breathingDone,
+      showBreathingOverlay: false, // "静一下"主动入口：覆盖层展示呼吸引导，跟首次启动的强制引导是两回事
       dailyCardPending: false, // 日推卡片待显示（等呼吸完成）
       dailyCardScheduled: false, // 本次会话已调度（防止 onShow 多次触发）
       basicInfoBeforeCard: false, // 需要先填基本信息再弹卡片
@@ -247,20 +291,30 @@ export default {
       myTasks: [],
       todayCompleted: [],
       completedYesterday: [],
-      // 每日任务完成流程
-      dailyTaskStep: null, // null | 'detail' | 'invite' | 'chat'
-      activeTask: null,
-      dailyTaskCompletionEventId: null,
-      dailyTaskConversationId: null,
-      inviteText: COMPLETION_INVITE_TEXT,
-      // 现在就来一件（instant-task）：零决策即时抽取流程
-      instantStep: null, // null | 'card' | 'invite' | 'chat'
-      instantTask: null,
-      instantRefreshCount: 0,
-      instantExhausted: false,
-      swapPhase: null, // null | 'leaving'(撕胶带+卡片翻走) | 'entering'(新胶带按上+新卡落定)
-      instantCompletionEventId: null,
-      instantConversationId: null,
+      // 每日任务完成流程 / 补聊（状态机在 DailyTaskFlow 组件内）：
+      // null | { task, completionEventId: string|null, entry: 'detail'|'chat' }
+      dailyFlow: null,
+      // 现在就来一件（状态机在 InstantFlow 组件内）
+      instantActive: false,
+      // 三件幸福小事（three-good-things）：聊即是做，一天至多一页
+      threeGoodThingsStep: null, // null | 'chat'
+      threeGoodThingsConversationId: null,
+      threeGoodThingsTitle: THREE_GOOD_THINGS_TITLE,
+      threeGoodThingsInstructions: THREE_GOOD_THINGS_SUMMARY_CONTEXT,
+      threeGoodThingsOpeningText: '今天有没有什么让你觉得幸福的小事？吃到的一口好东西、赶上的一趟车、一句让你愣了一下的话——想到几件说几件，想到一件也算数。',
+      threeGoodThingsSystemPrompt: buildThreeGoodThingsSystemPrompt(),
+      // 重逢弹层（trace-reencounter）：今日/昨日完成条目里有日记页的，点开展示这一页
+      tracePage: null,
+      // 手记册（diary-notebook）：有页才出现入口，点开全屏 overlay 翻阅
+      hasDiaryPages: hasAnyDiaryPage(),
+      showDiaryNotebook: false,
+      // 手记册首启引导（A 挖孔聚光 + B 注意力交接）
+      showNotebookGuide: false,
+      guideReady: false, // 挂载后先量测再显形，避免定位前闪现
+      guideLeaving: false,
+      guideHole: null, // { x, y, winW }：图标中心相对引导层原点的坐标（运行时量测，双端一致）
+      guideWiggling: false,
+      guideRippling: false,
       // 从日推卡片跳转的基本信息设置
       showBasicInfoOverlay: false,
       // 压花的风：点植物 → 叶片摇曳 + 标语随风换句
@@ -270,22 +324,115 @@ export default {
     }
   },
   computed: {
-    // 采集编号：与日推卡"今日编号"同一格式（YYYY/MM/DD），共享世界观
-    flyleafNum() {
-      return getTodayDateStr().replace(/-/g, '/')
+    // 任一任务流（每日/即时/三件幸福小事）进行中时，主页内容整体隐藏
+    flowActive() {
+      return !!this.dailyFlow || this.instantActive || !!this.threeGoodThingsStep
     },
     // 当日一句：日期确定性取模，同一天进多少次都是同一句；刮过风后从它开始轮换
     currentLine() {
       const seedIndex = Number(getTodayDateStr().replace(/-/g, '')) % FLYLEAF_LINES.length
       return FLYLEAF_LINES[this.lineIndex ?? seedIndex]
     },
+    // ---- 手记册首启引导的定位样式（图标位置运行时量测，量测失败退化为无孔纯蒙层+居中卡） ----
+    guideMaskStyle() {
+      if (!this.guideHole) return 'background: rgba(8, 16, 6, 0.55);'
+      const { x, y } = this.guideHole
+      return `background: radial-gradient(circle 30px at ${x}px ${y}px, rgba(8,16,6,0) 0px, rgba(8,16,6,0) 27px, rgba(8,16,6,0.55) 30px);`
+    },
+    // 注意：mp 端 uni 的 render 对 v-if 分支里的绑定也会求值，下面三个都必须自己兜住
+    // guideHole 为 null 的情况（只靠模板 v-if 保护在 H5 够用、在 mp 会整页渲染崩掉）。
+    guideRingStyle() {
+      if (!this.guideHole) return ''
+      const { x, y } = this.guideHole
+      return `left: ${x - 30}px; top: ${y - 30}px;`
+    },
+    guideCalloutStyle() {
+      if (!this.guideHole) return 'top: 40%; left: 32rpx; right: 32rpx;'
+      return `top: ${this.guideHole.y + 38}px; right: 32rpx;`
+    },
+    guideArrowStyle() {
+      if (!this.guideHole) return ''
+      // 箭头对准图标中心：距卡片右缘 = 层宽右缘到图标中心 - 卡片右边距(16px) - 箭头半宽(7px)
+      const { x, winW } = this.guideHole
+      return `right: ${winW - x - 16 - 7}px;`
+    },
   },
   onShow() {
     this.refreshMyTasks()
     this.refreshCompleted()
+    this.refreshDiaryEntry()
     this.checkAndShowDailyCard()
   },
+  watch: {
+    // 任务流收起时（此刻新页可能刚归档出来）看一眼要不要放首启引导
+    flowActive(active) {
+      if (!active) this.maybeShowNotebookGuide()
+    },
+  },
   methods: {
+    // 归档出新页后入口才该出现——回到首页/退出各聊天流程时重算一次（纯读取，不写任何键）
+    refreshDiaryEntry() {
+      this.hasDiaryPages = hasAnyDiaryPage()
+      this.maybeShowNotebookGuide()
+    },
+    // 手记册首启引导：条件满足时延迟 400ms 出现（让首页先站稳）。
+    // 定位：先以 opacity:0 挂载引导层，再同一坐标系量测图标与引导层两者的 rect 取相对坐标——
+    // 绝对坐标在 H5 会差一个 uni 导航栏高度（选择器量测不含导航栏、fixed 层却含），相对坐标双端一致。
+    maybeShowNotebookGuide() {
+      if (this.showNotebookGuide || this.guideLeaving) return
+      if (!this.hasDiaryPages || this.flowActive || this.showDiaryNotebook) return
+      if (hasSeenHint('diary-notebook-entry-v2')) return
+      setTimeout(() => {
+        if (this.flowActive || this.showDiaryNotebook || this.showNotebookGuide) return
+        this.guideReady = false
+        this.showNotebookGuide = true
+        this.$nextTick(() => {
+          uni
+            .createSelectorQuery()
+            .in(this)
+            .select('.diary-entry')
+            .boundingClientRect()
+            .select('.nb-guide')
+            .boundingClientRect()
+            .exec((res) => {
+              const [icon, guide] = res || []
+              if (icon && guide) {
+                this.guideHole = {
+                  x: icon.left + icon.width / 2 - guide.left,
+                  y: icon.top + icon.height / 2 - guide.top,
+                  winW: guide.width,
+                }
+              }
+              this.guideReady = true
+            })
+        })
+      }, 400)
+    },
+    // 关闭引导：知道了 → B 接力（涟漪+摇曳一次）；点亮孔里的图标 → 直接进册子（引导即入口）
+    dismissNotebookGuide(openBook) {
+      if (this.guideLeaving) return
+      markHintSeen('diary-notebook-entry-v2')
+      this.guideLeaving = true
+      setTimeout(() => {
+        this.showNotebookGuide = false
+        this.guideLeaving = false
+        if (openBook) {
+          this.showDiaryNotebook = true
+          return
+        }
+        setTimeout(() => {
+          this.guideRippling = true
+          this.guideWiggling = true
+          setTimeout(() => {
+            this.guideRippling = false
+            this.guideWiggling = false
+          }, 1400)
+        }, 120)
+      }, 220)
+    },
+    openDiaryNotebook() {
+      this.showDiaryNotebook = true
+    },
     // 刮一阵风：叶片逐片摇曳（CSS 负责），标语在风经过时淡出→换句→淡入。
     // 风还没停时不再起风（windActive 兼作节流）。
     blowWind() {
@@ -325,6 +472,7 @@ export default {
     },
     onBreathingDone() {
       this.breathingDone = true
+      set(KEYS.BREATHING_INTRO_DONE, true)
       if (this.dailyCardPending) {
         this.dailyCardPending = false
         this.triggerDailyCard()
@@ -389,11 +537,24 @@ export default {
       clearPrevDayCompleted()
       this.completedYesterday = []
     },
+    // 今日/昨日已完成条目的"聊聊"入口：有日记页 -> 重逢弹层；没有 -> 走正常聊聊流程
+    // （trace-reencounter：同一入口，按有没有页分支，不新增按钮）。
     chatCompletedTask(task) {
+      const event = getCompletionEvent(task.completionEventId)
+      const page = getDiaryPageForEvent(event)
+      if (page) {
+        this.tracePage = {
+          title: task.title,
+          completedAt: page.completed_at,
+          summaryText: page.summary_text,
+          photoThumb: page.photo_thumb ?? null,
+          photos: getSummaryPhotos(page),
+        }
+        return
+      }
       this.showDailyCard = false
-      this.activeTask = task
-      this.dailyTaskCompletionEventId = task.completionEventId
-      this.startDailyTaskChat()
+      // 补聊：复用既有完成事件，直接进对话（不新建完成事件、不走完成一拍）
+      this.dailyFlow = { task, completionEventId: task.completionEventId, entry: 'chat' }
     },
     openBasicInfoFromCard() {
       this.showDailyCard = false
@@ -408,108 +569,43 @@ export default {
         this.triggerDailyCard(true)
       }
     },
-    // 每日任务完成流程
+    // 每日任务完成流程：进入 = 挂载 DailyTaskFlow 组件（状态机在组件内）
     enterDailyTask(task) {
-      this.activeTask = task
-      this.dailyTaskStep = 'detail'
-    },
-    markDailyTaskDone() {
-      completeTask(this.activeTask.id)
-      this.refreshMyTasks()
-      const event = createCompletionEvent({
-        contentId: this.activeTask.id,
-        contentType: 'daily_task',
-        collectionId: null,
-      })
-      this.dailyTaskCompletionEventId = event.id
-      saveCompletedTask(this.activeTask, event.id)
-      this.refreshCompleted()
-      this.dailyTaskStep = 'invite'
-    },
-    startDailyTaskChat() {
-      const conv = createConversation(this.dailyTaskCompletionEventId)
-      this.dailyTaskConversationId = conv.id
-      this.dailyTaskStep = 'chat'
-    },
-    removeTask() {
-      completeTask(this.activeTask.id)
-      this.refreshMyTasks()
-      this.exitDailyTask()
-    },
-    // 现在就来一件：按档案 scene_tags 零决策抽一条，排除已领取和今日已完成的
-    pickInstantTask(extraExcludeId) {
-      const excludeIds = [
-        ...getUncompletedTasks().map((t) => t.id),
-        ...getTodayCompleted().map((t) => t.id),
-      ]
-      if (extraExcludeId) excludeIds.push(extraExcludeId)
-      const candidates = getDailyTaskCandidates(getBasicInfo().scene_tags || [], excludeIds)
-      return candidates.length ? candidates[0] : null
+      this.dailyFlow = { task, completionEventId: null, entry: 'detail' }
     },
     startInstant() {
-      this.instantRefreshCount = 0
-      this.instantExhausted = false
-      this.instantTask = this.pickInstantTask()
-      this.instantStep = 'card'
+      this.instantActive = true
     },
-    // "换一个"最多3次；第4次点击不再换，露出关怀小字——沿用旧推送层"把限制说成关心"的立场。
-    // 换卡 = 撕胶带四拍编排：撕胶带(0-420ms) → 卡片翻走(100-620ms) → 620ms 换数据 →
-    // 新胶带按上(620-940ms) → 新卡落定(780-1260ms)。时长刻意从容，贴合"不催促"。
-    refreshInstant() {
-      if (!this.instantTask || this.instantExhausted || this.swapPhase) return
-      if (this.instantRefreshCount >= 3) {
-        this.instantExhausted = true
-        return
-      }
-      this.instantRefreshCount += 1
-      this.swapPhase = 'leaving'
-      setTimeout(() => {
-        // 撕的途中用户可能已"← 返回"退出流程，退了就不再动数据
-        if (this.instantStep !== 'card' || !this.instantTask) {
-          this.swapPhase = null
-          return
-        }
-        // 池子见底抽不出新卡时保留当前卡——视觉上等于"撕下来又贴了回去"
-        this.instantTask = this.pickInstantTask(this.instantTask.id) ?? this.instantTask
-        this.swapPhase = 'entering'
-        setTimeout(() => {
-          this.swapPhase = null
-        }, 700)
-      }, 620)
-    },
-    // 无"领取"概念：做完啦直接计入今日已完成（不经过 DailyTaskPool）
-    // 撕卡动画进行中不响应——正在飞走的卡不该被"做完"
-    markInstantDone() {
-      if (this.swapPhase) return
-      const event = createCompletionEvent({
-        contentId: this.instantTask.id,
-        contentType: 'daily_task',
-        collectionId: null,
-      })
-      this.instantCompletionEventId = event.id
-      saveCompletedTask(this.instantTask, event.id)
+    // 流程内产生完成事件（做完啦/移除）时刷新列表区块
+    onFlowCompleted() {
+      this.refreshMyTasks()
       this.refreshCompleted()
-      this.instantStep = 'invite'
     },
-    startInstantChat() {
-      const conv = createConversation(this.instantCompletionEventId)
-      this.instantConversationId = conv.id
-      this.instantStep = 'chat'
+    // 流程退出：先收起 UI，再后台补归档（"聊过就顺手归档"）+ 刷新手记入口。
+    // 归档上下文由组件在 close 事件里带出——组件卸载后自身状态已不可用。
+    async onInstantClose(payload) {
+      this.instantActive = false
+      await archiveChatOnExit(payload.conversationId, payload.title, payload.instructions)
+      this.refreshDiaryEntry()
     },
-    exitInstant() {
-      this.instantStep = null
-      this.instantTask = null
-      this.instantRefreshCount = 0
-      this.instantExhausted = false
-      this.swapPhase = null
-      this.instantCompletionEventId = null
-      this.instantConversationId = null
+    async onDailyFlowClose(payload) {
+      this.dailyFlow = null
+      await archiveChatOnExit(payload.conversationId, payload.title, payload.instructions)
+      this.refreshDiaryEntry()
     },
-    exitDailyTask() {
-      this.dailyTaskStep = null
-      this.activeTask = null
-      this.dailyTaskCompletionEventId = null
-      this.dailyTaskConversationId = null
+    // 三件幸福小事：随时可记——点入口总是进对话（今天有未归档会话就续、否则开新的一段）。
+    // 回看历史交给手记册，这里不再有"已归档只读重逢"分支（three-good-things）。
+    openThreeGoodThings() {
+      const { conversationId } = resolveTodayEntry()
+      this.threeGoodThingsConversationId = conversationId
+      this.threeGoodThingsStep = 'chat'
+    },
+    async exitThreeGoodThings() {
+      const convId = this.threeGoodThingsConversationId
+      this.threeGoodThingsStep = null
+      this.threeGoodThingsConversationId = null
+      await archiveChatOnExit(convId, this.threeGoodThingsTitle, this.threeGoodThingsInstructions)
+      this.refreshDiaryEntry()
     },
   },
 }
@@ -525,6 +621,213 @@ export default {
   /* H5 端 --window-top/--window-bottom 是导航栏/tabbar 高度，小程序端为 0 */
   min-height: calc(100vh - var(--window-top, 0px) - var(--window-bottom, 0px));
   box-sizing: border-box;
+}
+
+/* 手记册入口：与 NavBar 的 ⚙ 角标（right:20rpx，宽 64rpx）同尺寸，并排其左侧。
+   right = 20 + 64 + 12(间隙) = 96rpx。无红点无 badge。 */
+.diary-entry {
+  position: fixed;
+  top: 20rpx;
+  right: 96rpx;
+  z-index: 10;
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 线条小册子（纯 CSS，双端可见）：封面 + 靠左书脊 + 两道书写横线，单色 --c-subtle */
+.dn-book {
+  position: relative;
+  width: 34rpx;
+  height: 42rpx;
+  border: 2rpx solid var(--c-subtle);
+  border-radius: 4rpx 7rpx 7rpx 4rpx;
+  box-sizing: border-box;
+}
+
+.dn-book__spine {
+  position: absolute;
+  left: 8rpx;
+  top: 0;
+  bottom: 0;
+  width: 2rpx;
+  background: var(--c-subtle);
+}
+
+.dn-book__line {
+  position: absolute;
+  left: 14rpx;
+  right: 6rpx;
+  height: 2rpx;
+  background: var(--c-subtle);
+  opacity: 0.75;
+}
+
+.dn-book__line--1 {
+  top: 14rpx;
+}
+
+.dn-book__line--2 {
+  top: 24rpx;
+}
+
+/* ---- 手记册首启引导（A 挖孔聚光 + B 注意力交接）---- */
+.nb-guide {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  transition: opacity 0.22s ease;
+}
+
+.nb-guide--leaving {
+  opacity: 0;
+}
+
+.nb-guide--measuring {
+  opacity: 0;
+}
+
+.nb-guide__mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  animation: fade-in 0.24s ease both;
+}
+
+/* 亮孔描边：一圈细纸色光边，标明"这里被点亮" */
+.nb-guide__ring {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(243, 247, 240, 0.9);
+  box-shadow: 0 0 0 1px rgba(8, 16, 6, 0.2);
+  box-sizing: border-box;
+  animation: fade-in 0.24s ease both;
+}
+
+/* 洞内点击热区（透明）：点亮孔里的图标=关闭引导并直接进册子 */
+.nb-guide__hit {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+}
+
+.nb-guide__callout {
+  position: absolute;
+  width: 592rpx;
+  max-width: calc(100vw - 64rpx);
+  background: var(--c-card);
+  border-radius: 32rpx;
+  padding: 40rpx 44rpx 36rpx;
+  box-shadow: var(--sh-float);
+  box-sizing: border-box;
+  animation: rise-in 0.28s var(--ease-out) 0.12s both;
+}
+
+.nb-guide__arrow {
+  position: absolute;
+  top: -14rpx;
+  width: 28rpx;
+  height: 28rpx;
+  background: var(--c-card);
+  transform: rotate(45deg);
+  border-radius: 4rpx 0 0 0;
+}
+
+.nb-guide__text {
+  font-size: 28rpx;
+  color: var(--c-ink);
+  line-height: 1.85;
+}
+
+.nb-guide__btn {
+  margin-top: 32rpx;
+  text-align: center;
+  padding: 22rpx 0;
+  border-radius: 999rpx;
+  background: var(--c-primary);
+  color: #f0f5ef;
+  font-size: 28rpx;
+}
+
+/* B：涟漪（引导关闭后从图标漾出两圈，一次性） */
+@keyframes dn-ripple {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+
+.dn-ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--c-primary);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.dn-ripple--1 {
+  animation: dn-ripple 0.9s var(--ease-out) both;
+}
+
+.dn-ripple--2 {
+  animation: dn-ripple 1.05s var(--ease-out) 0.16s both;
+}
+
+/* B：册子摇曳（以底边为轴，一次即止） */
+@keyframes dn-wiggle {
+  0% {
+    transform: rotate(0);
+  }
+  18% {
+    transform: rotate(-8deg);
+  }
+  38% {
+    transform: rotate(6deg);
+  }
+  58% {
+    transform: rotate(-3.5deg);
+  }
+  78% {
+    transform: rotate(1.5deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+
+.diary-entry--wiggling .dn-book {
+  animation: dn-wiggle 1.05s var(--ease-out) both;
+  transform-origin: 50% 88%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dn-ripple--1,
+  .dn-ripple--2,
+  .diary-entry--wiggling .dn-book {
+    animation: none;
+  }
+  .nb-guide__callout {
+    animation: fade-in 0.2s ease both;
+  }
 }
 
 /* 任务区块 = 标本卡：贴在纸面底色上的白色卡片 */
@@ -586,26 +889,6 @@ export default {
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
-.push-flow__card-empty {
-  padding: 60rpx 20rpx;
-  font-size: 28rpx;
-  color: var(--c-subtle);
-  text-align: center;
-  line-height: 1.85;
-}
-
-.push-flow__hint {
-  margin-top: 24rpx;
-  font-size: 24rpx;
-  color: var(--c-subtle);
-  text-align: center;
-  line-height: 1.75;
-}
-
-.push-flow__btn--disabled {
-  opacity: 0.4;
-}
-
 .daily-card-entry {
   margin-top: 32rpx;
   width: calc(100% - 120rpx);
@@ -617,6 +900,44 @@ export default {
   border: 1rpx solid var(--c-border-s);
   border-radius: 999rpx;
   transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+/* 静一下：安静的主动入口，无角标无未读态——用不用都一个样子（breathing-entry） */
+.quiet-entry {
+  margin-top: 28rpx;
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 8rpx;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.quiet-entry__icon {
+  font-size: 26rpx;
+  color: var(--c-subtle);
+}
+
+.quiet-entry__label {
+  font-size: 24rpx;
+  color: var(--c-subtle);
+}
+
+/* 静一下覆盖层：盖住整页，呼吸引导用完即走，不留状态 */
+.breathing-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--c-bg);
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-top: 88rpx;
+  padding-bottom: 32rpx;
+  box-sizing: border-box;
+  animation: fade-in 0.2s ease both;
 }
 
 .completed-task-item {
@@ -643,232 +964,13 @@ export default {
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
-.push-flow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 60rpx;
-  width: 100%;
-  box-sizing: border-box;
-  animation: rise-in 0.28s var(--ease-out) both;
-}
-
-/* 单任务流程：占满剩余高度，卡片在上、操作沉到拇指区 */
-.push-flow--fill {
-  flex: 1;
-  min-height: 0;
-}
-
-/* 邀请步骤：内容整体在屏幕中部偏上，仪式印记居于视线焦点 */
-.push-flow--center {
-  flex: 1;
-  justify-content: center;
-  padding-bottom: 18vh;
-}
-
-/* 手贴卡的"桌面"：占满卡与操作区之间的空间，卡片垂直居中微偏上 */
-.push-flow__stage {
-  flex: 1;
-  min-height: 0;
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  /* 胶带在卡顶外 16rpx，居中裕量给足避免被裁 */
-  padding-top: 20rpx;
-}
-
-/* 胶带与卡片的共同容器：两者是兄弟节点，换卡时各自独立动 */
-.push-flow__cardwrap {
-  position: relative;
-  width: 100%;
-}
-
-/* 手贴的卡：0.4° 的歪——人手贴的东西从来不是绝对水平的 */
-.push-flow__card--pinned {
-  transform: rotate(0.4deg);
-  transform-origin: top center;
-}
-
-/* 纸胶带：把卡固定在册页上的那截。撕的时候右端还粘着、左端先起 */
-.push-flow__tape {
-  position: absolute;
-  top: -16rpx;
-  left: 50%;
-  width: 128rpx;
-  height: 36rpx;
-  transform: translateX(-50%) rotate(-2.5deg);
-  transform-origin: 88% 60%;
-  background: rgba(197, 219, 189, 0.68);
-  border: 1rpx solid rgba(18, 71, 3, 0.07);
-  border-radius: 2rpx;
-}
-
-/* ===== 换一个：撕胶带四拍 =====
-   撕（leaving）：胶带左端揭起脱离 → 卡片失去固定，绕顶边向后上方翻走（ease-in，外力越拉越快）
-   贴（entering）：新胶带从上方按下贴住 → 新卡在胶带下落定，回弹到 0.4°（ease-out，自然静止） */
-.push-flow__cardwrap--leaving .push-flow__tape {
-  animation: tape-peel 0.42s cubic-bezier(0.5, 0.1, 0.7, 0.4) both;
-}
-
-@keyframes tape-peel {
-  0%   { transform: translateX(-50%) rotate(-2.5deg); opacity: 1; }
-  45%  { transform: translateX(-48%) translateY(-14rpx) rotate(16deg); opacity: 1; }
-  100% { transform: translateX(-38%) translateY(-60rpx) rotate(46deg); opacity: 0; }
-}
-
-.push-flow__cardwrap--leaving .push-flow__card {
-  animation: card-tear 0.52s cubic-bezier(0.45, 0.05, 0.85, 0.4) 0.1s both;
-}
-
-@keyframes card-tear {
-  0%   { transform: perspective(900px) rotateX(0deg) translateY(0) rotate(0.4deg); opacity: 1; }
-  40%  { transform: perspective(900px) rotateX(26deg) translateY(-44rpx) rotate(-2.5deg); opacity: 1; }
-  100% { transform: perspective(900px) rotateX(62deg) translateY(-220rpx) rotate(-6deg); opacity: 0; }
-}
-
-.push-flow__cardwrap--entering .push-flow__tape {
-  animation: tape-press 0.32s var(--ease-out) both;
-}
-
-@keyframes tape-press {
-  0%   { transform: translateX(-50%) translateY(-24rpx) rotate(-6deg) scale(1.25); opacity: 0; }
-  60%  { transform: translateX(-50%) translateY(2rpx) rotate(-2deg) scale(0.97); opacity: 1; }
-  100% { transform: translateX(-50%) rotate(-2.5deg) scale(1); opacity: 1; }
-}
-
-.push-flow__cardwrap--entering .push-flow__card {
-  animation: card-settle 0.48s var(--ease-out) 0.16s both;
-}
-
-@keyframes card-settle {
-  0%   { transform: translateY(-32rpx) rotate(1.8deg); opacity: 0; }
-  55%  { transform: translateY(4rpx) rotate(-0.1deg); opacity: 1; }
-  100% { transform: translateY(0) rotate(0.4deg); opacity: 1; }
-}
-
-/* 减少动态：撕/贴退化为卡片交叉淡换，胶带不动 */
+/* push-flow（手贴卡/邀请/撕胶带）样式已随 DailyTaskFlow / InstantFlow 组件
+   迁至 styles/push-flow.css——mp-weixin 样式隔离下组件不吃页面样式 */
 @media (prefers-reduced-motion: reduce) {
-  .push-flow__cardwrap--leaving .push-flow__tape,
-  .push-flow__cardwrap--entering .push-flow__tape {
-    animation: none;
-  }
-
-  .push-flow__cardwrap--leaving .push-flow__card {
-    animation: reduced-card-out 0.3s ease both;
-  }
-
-  .push-flow__cardwrap--entering .push-flow__card {
-    animation: reduced-card-in 0.3s ease both;
-  }
-}
-
-@keyframes reduced-card-out {
-  from { opacity: 1; transform: rotate(0.4deg); }
-  to   { opacity: 0; transform: rotate(0.4deg); }
-}
-
-@keyframes reduced-card-in {
-  from { opacity: 0; transform: rotate(0.4deg); }
-  to   { opacity: 1; transform: rotate(0.4deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .push-flow,
   .home-header,
   .daily-tasks-block {
     animation: fade-in 0.2s ease both;
   }
-}
-
-.push-flow__card {
-  width: 100%;
-  padding: 40rpx 36rpx;
-  border-radius: 28rpx;
-  background: var(--c-card);
-  border: 1rpx solid var(--c-border-s);
-  box-shadow: var(--sh-card);
-  box-sizing: border-box;
-}
-
-.push-flow__card-title {
-  font-size: 38rpx;
-  color: var(--c-ink);
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: -0.01em;
-  margin-bottom: 12rpx;
-}
-
-.push-flow__card-time {
-  font-size: 24rpx;
-  color: var(--c-subtle);
-  margin-bottom: 28rpx;
-}
-
-.push-flow__card-instructions {
-  font-size: 28rpx;
-  color: var(--c-muted);
-  line-height: 1.9;
-}
-
-.push-flow__done-btn {
-  margin-top: 28rpx;
-  padding: 30rpx 88rpx;
-  border-radius: 999rpx;
-  background: var(--c-primary);
-  color: #f0f5ef;
-  font-size: 30rpx;
-  letter-spacing: 0.02em;
-  box-shadow: var(--sh-card);
-  transition: transform 0.12s ease, opacity 0.12s ease;
-}
-
-/* 两个轻链接：视觉保持轻，但触点给足（内边距撑出 ≥88rpx 高的可点区） */
-.push-flow__back-link {
-  margin-top: 4rpx;
-  padding: 22rpx 48rpx;
-  font-size: 28rpx;
-  color: var(--c-subtle);
-  transition: transform 0.12s ease, opacity 0.12s ease;
-}
-
-.push-flow__remove-link {
-  padding: 22rpx 48rpx;
-  font-size: 26rpx;
-  color: var(--c-subtle);
-  transition: transform 0.12s ease, opacity 0.12s ease;
-}
-
-.push-flow__invite-text {
-  font-size: 28rpx;
-  color: var(--c-muted);
-  line-height: 1.85;
-  text-align: center;
-  padding: 0 20rpx;
-}
-
-.push-flow__actions {
-  margin-top: 28rpx;
-  display: flex;
-  gap: 24rpx;
-}
-
-.push-flow__btn {
-  padding: 24rpx 48rpx;
-  border-radius: 999rpx;
-  border: 1rpx solid var(--c-border-s);
-  background: var(--c-card);
-  color: var(--c-muted);
-  font-size: 28rpx;
-  transition: transform 0.12s ease, opacity 0.12s ease;
-}
-
-.push-flow__btn--primary {
-  background: var(--c-primary);
-  color: #f0f5ef;
-  border-color: transparent;
 }
 
 /* ===== 压花标本（页面内联绘制） =====
@@ -911,11 +1013,10 @@ export default {
   background: rgba(18, 71, 3, 0.26);
 }
 
-/* 右侧叶：根部贴茎（茎在 x≈120rpx），尖端朝右上 */
+/* 右侧叶：根部贴茎，尖端朝右上 */
 .sprig__leaf--1,
 .sprig__leaf--3,
 .sprig__leaf--5 {
-  left: 122rpx;
   transform-origin: 0 50%;
 }
 
@@ -930,7 +1031,6 @@ export default {
 .sprig__leaf--2,
 .sprig__leaf--4,
 .sprig__leaf--6 {
-  left: 68rpx;
   transform-origin: 100% 50%;
 }
 
@@ -941,13 +1041,14 @@ export default {
   transform-origin: 100% 50%;
 }
 
-/* 沿茎交替生长，越靠顶越小 */
-.sprig__leaf--1 { bottom: 28rpx;  transform: rotate(-26deg); }
-.sprig__leaf--2 { bottom: 60rpx;  transform: rotate(26deg) scale(0.95); }
-.sprig__leaf--3 { bottom: 94rpx;  transform: rotate(-30deg) scale(0.84); }
-.sprig__leaf--4 { bottom: 124rpx; transform: rotate(30deg) scale(0.76); }
-.sprig__leaf--5 { bottom: 152rpx; transform: rotate(-34deg) scale(0.64); }
-.sprig__leaf--6 { bottom: 172rpx; transform: rotate(34deg) scale(0.55); }
+/* 沿茎交替生长，越靠顶越小。left 在基准122/68rpx上叠加了茎4deg倾斜在该高度上的水平偏移
+   （bottom * sin(4deg) ≈ bottom * 0.07），否则越靠近顶端的叶子会离倾斜的茎越来越远。 */
+.sprig__leaf--1 { left: 124rpx; bottom: 28rpx;  transform: rotate(-26deg); }
+.sprig__leaf--2 { left: 72rpx;  bottom: 60rpx;  transform: rotate(26deg) scale(0.95); }
+.sprig__leaf--3 { left: 129rpx; bottom: 94rpx;  transform: rotate(-30deg) scale(0.84); }
+.sprig__leaf--4 { left: 77rpx;  bottom: 124rpx; transform: rotate(30deg) scale(0.76); }
+.sprig__leaf--5 { left: 133rpx; bottom: 152rpx; transform: rotate(-34deg) scale(0.64); }
+.sprig__leaf--6 { left: 80rpx;  bottom: 172rpx; transform: rotate(34deg) scale(0.55); }
 
 .sprig__bud {
   position: absolute;
@@ -1064,13 +1165,6 @@ export default {
   transform-origin: bottom center;
 }
 
-.home-footer__num {
-  margin-top: 14rpx;
-  font-size: 20rpx;
-  color: var(--c-subtle);
-  letter-spacing: 0.14em;
-}
-
 .home-footer__line {
   margin-top: 10rpx;
   font-size: 24rpx;
@@ -1079,6 +1173,7 @@ export default {
   text-align: center;
   padding: 0 80rpx;
   min-height: 66rpx;
+  white-space: pre-line;
   opacity: 1;
   transition: opacity 0.3s ease;
 }
@@ -1088,39 +1183,7 @@ export default {
   opacity: 0;
 }
 
-.basic-info-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(8, 16, 6, 0.5);
-  z-index: 110;
-  display: flex;
-  align-items: flex-end;
-  animation: fade-in 0.2s ease both;
-}
-
-.basic-info-overlay__sheet {
-  width: 100%;
-  background: var(--c-card);
-  border-radius: 36rpx 36rpx 0 0;
-  padding: 40rpx;
-  animation: sheet-up 0.3s var(--ease-out) both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .basic-info-overlay,
-  .basic-info-overlay__sheet {
-    animation: fade-in 0.2s ease both;
-  }
-}
-
-.basic-info-overlay__back {
-  font-size: 26rpx;
-  color: var(--c-primary);
-  margin-bottom: 16rpx;
-}
+/* basic-info-overlay 样式已随 BasicInfoOverlay 组件迁走 */
 
 .basic-info-overlay__scroll {
   height: 700rpx;

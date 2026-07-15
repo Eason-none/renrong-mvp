@@ -1,4 +1,4 @@
-// 回顾叙事生成API封装（product_handoff.md §11.3，spec_v1.md §3.5）
+// 回顾叙事生成API封装（product_handoff.md §11.3，docs/archive/spec_v1.md §3.5）
 // 调用契约（reviewOrchestration.js注入要求）：generateReviewText(collectionId, summaries) -> Promise<string>，
 // summaries是调用方（Task10）已经快照固定好的素材，本文件只管按它生成文本，不回头查storage——
 // 这是"快照定格"语义成立的前提，不能在这里违反。
@@ -7,6 +7,9 @@
 // 所以用一次性非流式请求即可，两端（H5/mp-weixin）用uni.request统一处理，不用区分平台。
 
 import { getCollectionById, getCollectionItemById } from "../content/library.js"
+// #ifdef MP-WEIXIN
+import { callLlmCloud } from "./cloudFn.js"
+// #endif
 
 const PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "http://localhost:5555"
 const MODEL = import.meta.env.VITE_QWEN_MODEL
@@ -77,6 +80,19 @@ ${itemsData}
 }
 
 function requestQwen(prompt) {
+	const messages = [{ role: "user", content: prompt }]
+
+	// #ifdef MP-WEIXIN
+	// 小程序端走微信云开发云函数（真实key藏在云函数环境变量里，微信天然鉴权，无需域名/备案）。
+	return callLlmCloud({ target: "qwen", model: MODEL, messages }).then(({ statusCode, data }) => {
+		if (statusCode !== 200) {
+			throw new Error(`回顾生成API请求失败：${statusCode} ${JSON.stringify(data)}`)
+		}
+		return data?.choices?.[0]?.message?.content?.trim() ?? ""
+	})
+	// #endif
+
+	// #ifndef MP-WEIXIN
 	return new Promise((resolve, reject) => {
 		uni.request({
 			url: `${PROXY_URL}/qwen-proxy/chat/completions`,
@@ -85,7 +101,7 @@ function requestQwen(prompt) {
 				"Content-Type": "application/json",
 				...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
 			},
-			data: { model: MODEL, messages: [{ role: "user", content: prompt }] },
+			data: { model: MODEL, messages },
 			success: (res) => {
 				if (res.statusCode !== 200) {
 					reject(new Error(`回顾生成API请求失败：${res.statusCode} ${JSON.stringify(res.data)}`))
@@ -96,6 +112,7 @@ function requestQwen(prompt) {
 			fail: (err) => reject(new Error(`回顾生成API请求失败：${err.errMsg}`)),
 		})
 	})
+	// #endif
 }
 
 export async function generateReviewText(collectionId, summaries) {

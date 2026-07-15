@@ -3,12 +3,12 @@
     <template v-if="view === 'grid'">
       <NavBar />
       <view class="page__header">
-        <view class="page__title">丰荣探索</view>
+        <view class="page__title">丰容探索</view>
         <view v-if="totalReviewCount > 1" class="page__all-reviews-icon" hover-class="u-press" @tap="view = 'all-reviews'">回顾</view>
       </view>
       <view class="page__subtitle">你当然可以对每个探索的内容按自己的喜好调整，这些不是任务，去尝试去体验最重要</view>
       <CollectionGrid ref="grid" @select="onSelect" @review-tap="onReviewTap" />
-      <FirstTimeHint hint-key="explore-intro" text="这里是不同主题下的丰荣活动合集，挑感兴趣的自由探索。" />
+      <FirstTimeHint hint-key="explore-intro" text="这里是不同主题下的丰容活动合集，挑感兴趣的自由探索。" />
       <CollectionUnlockModal
         v-if="selectedId"
         :collection-id="selectedId"

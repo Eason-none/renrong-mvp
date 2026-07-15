@@ -128,8 +128,10 @@ export default {
       return calcSurvivalDays(this.playerInfo?.birth_date)
     },
     isInfoComplete() {
+      // 出生日期是纯可选彩蛋（只喂存活天数一行），不计入完整性——否则不想填生日的用户
+      // 会被"去完善你的信息"永远追着跑（内测反馈：被感知为必填）
       const p = this.playerInfo
-      return !!(p?.player_id && p?.birth_date && p?.scene_tags?.length)
+      return !!(p?.player_id && p?.scene_tags?.length)
     },
     // 定位/天气取不到时收起感叹号——失败态不该带上播报的兴奋语气
     cityLine() {

@@ -22,17 +22,46 @@
       <view v-for="snapshot in snapshots" :key="snapshot.id" class="review-view__entry">
         <view class="review-view__entry-text">{{ snapshot.text }}</view>
       </view>
+
+      <!-- 照片小图集：实时陈列，不属于叙事快照的一部分；没有照片时不占位、不显示区域 -->
+      <view v-if="photoThumbs.length" class="review-view__gallery">
+        <image
+          v-for="(photo, i) in photoThumbs"
+          :key="i"
+          :src="photo"
+          mode="aspectFill"
+          class="review-view__gallery-photo"
+        ></image>
+      </view>
+
+      <!-- share-card：安静的常驻保存入口（默认节选、全文需在预览里勾选）；
+           生成完成的瞬间没有任何指向这里的引导（入口永不主动弹出红线） -->
+      <view class="review-view__footer">
+        <view class="review-view__save" hover-class="u-press" @tap="showShare = true">保存这一页</view>
+      </view>
+      <!-- 首次说明（2026-07-13 用户决策）：与 TracePage 共用 hintKey，全生命周期只出现一次 -->
+      <FirstTimeHint
+        hint-key="share-save-entry"
+        text="像这样的每一页都可以做成一张卡片存进相册——入口是页脚的「保存这一页」。手记册里翻到的任何一页、图鉴的回顾，也都能这样保存。"
+      />
     </view>
+    <ShareCardPreview
+      v-if="showShare"
+      :review="{ text: snapshots[0].text, collectionName: collection.name }"
+      @close="showShare = false"
+    />
   </view>
 </template>
 
 <script>
 import { getCollectionById, getCollectionItemById } from '@/content/library.js'
-import { getReviewSnapshots, ensureFirstReviewSnapshot } from '@/state/reviewOrchestration.js'
+import { getReviewSnapshots, ensureFirstReviewSnapshot, getCollectionPhotoThumbs } from '@/state/reviewOrchestration.js'
 import { getCompletionEvent } from '@/state/completionEvent.js'
 import { track } from '@/state/analytics.js'
 import { generateReviewText } from '@/api/review.js'
 import { generateSummaryText } from '@/api/deepseek.js'
+import ShareCardPreview from './ShareCardPreview.vue'
+import FirstTimeHint from './FirstTimeHint.vue'
 
 // product_handoff.md §5.4.1 定稿措辞：点进提示但回顾还在生成中时，用邀请式加载文案，
 // 不用系统进度提示的语气。
@@ -54,6 +83,7 @@ function summaryFnForConversation(conv) {
 
 export default {
   name: 'ReviewView',
+  components: { ShareCardPreview, FirstTimeHint },
   props: {
     collectionId: { type: String, required: true },
   },
@@ -62,9 +92,11 @@ export default {
     return {
       collection: getCollectionById(this.collectionId),
       snapshots: getReviewSnapshots(this.collectionId),
+      photoThumbs: getCollectionPhotoThumbs(this.collectionId),
       loadingText: LOADING_TEXT,
       failedText: FAILED_TEXT,
       failed: false,
+      showShare: false,
     }
   },
   created() {
@@ -83,6 +115,8 @@ export default {
       try {
         await ensureFirstReviewSnapshot(this.collectionId, generateReviewText, summaryFnForConversation)
         this.snapshots = getReviewSnapshots(this.collectionId)
+        // 生成过程里发生的被动归档可能带出新照片，一并刷新
+        this.photoThumbs = getCollectionPhotoThumbs(this.collectionId)
       } catch (err) {
         console.error('ensureFirstReviewSnapshot failed:', err)
         this.failed = true
@@ -105,18 +139,18 @@ export default {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  padding: 32rpx 0 8rpx;
-  margin-bottom: 4rpx;
+  padding: 32rpx 24rpx 12rpx 0;
+  margin-bottom: 0;
 }
 
 .review-view__back-arrow {
-  font-size: 32rpx;
+  font-size: 34rpx;
   color: var(--c-primary);
   line-height: 1;
 }
 
 .review-view__back-label {
-  font-size: 28rpx;
+  font-size: 30rpx;
   color: var(--c-primary);
 }
 
@@ -196,5 +230,33 @@ export default {
   color: var(--c-muted);
   line-height: 2;
   white-space: pre-wrap;
+}
+
+/* 照片小图集：陈列，不是画廊——三列平铺，没有边框/阴影/计数，安静地放在叙事下面 */
+.review-view__gallery {
+  margin-top: 24rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.review-view__gallery-photo {
+  width: calc((100% - 24rpx) / 3);
+  aspect-ratio: 1;
+  border-radius: 16rpx;
+  background: var(--c-surface);
+}
+
+.review-view__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 40rpx 0 64rpx;
+}
+
+.review-view__save {
+  font-size: 26rpx;
+  color: var(--c-primary);
+  border-bottom: 1rpx dashed var(--c-border-s);
+  padding-bottom: 4rpx;
 }
 </style>

@@ -60,11 +60,12 @@ order by 1;
 
 ```sql
 -- 回顾打开率。collection_sizes 与 src/content/library.js 同步维护（见 §四）。
+-- 2026-07-12 同步：图鉴已重组为 8 本（角落/物件已删、时间实验并入城市探索），
+-- 条目数与 scripts/verify-library.mjs 的 expectedCollections 一致。
 with collection_sizes(collection_id, size) as (values
-  ('collection_001', 7), ('collection_002', 5), ('collection_003', 8),
-  ('collection_004', 7), ('collection_005', 5), ('collection_006', 7),
-  ('collection_007', 7), ('collection_008', 7), ('collection_009', 7),
-  ('collection_010', 7), ('collection_011', 7)
+  ('collection_001', 8), ('collection_003', 8), ('collection_004', 7),
+  ('collection_006', 10), ('collection_007', 7), ('collection_008', 9),
+  ('collection_010', 6), ('collection_011', 7)
 ),
 lit as (  -- 点亮过至少一本图鉴的用户
   select e.anon_id
@@ -107,7 +108,30 @@ group by anon_id
 order by collections_touched desc;
 ```
 
-### 2.3 内容方向：什么被完成得多
+### 2.3 聊聊率（2026-07-12 新增，chat_engaged 事件）
+
+完成摘要 → 回顾叙事 → 手记册 → 重逢 → 分享卡，这半个产品的素材全部来自聊聊。聊聊率是这条管道的唯一供血阀门，低了下游集体饿死——它是解释北极星的第一优先切片。
+
+**口径**：`chat_engaged` 只在对话**第一条用户消息**发出时上报（每对话至多一次）。"点聊聊进去没说话就说完了"的空对话不上报、不入分子——聊聊率反映实质开口，不被虚高。分母用 `task_completed`（两者经完成事件 1:1 对应）。
+
+```sql
+-- 聊聊率：按周 + 按内容类型
+select
+  date_trunc('week', (client_ts at time zone 'Asia/Shanghai')::date)::date as week,
+  content_type,
+  count(*) filter (where event = 'task_completed') as completed,
+  count(*) filter (where event = 'chat_engaged') as engaged,
+  round(100.0 * count(*) filter (where event = 'chat_engaged')
+    / nullif(count(*) filter (where event = 'task_completed'), 0), 1) as chat_rate_pct
+from events
+where event in ('task_completed', 'chat_engaged')
+group by 1, 2
+order by 1, 2;
+```
+
+注意它进反指标清单的边界：聊聊率是**诊断指标**（解释回顾/手记/分享卡有没有素材），不是目标——不许为拉高它加催促机制，允许的手段只有"把记录的回报讲清楚"（如 chat-invite 首次气泡）这类信息补全。
+
+### 2.4 内容方向：什么被完成得多
 
 内容扩产解冻后往哪个方向投的直接依据。
 

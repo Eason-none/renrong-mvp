@@ -1,4 +1,4 @@
-// CompletionEvent创建 + 聊聊邀请触发（spec_v1.md §3.2 AC1-AC3）
+// CompletionEvent创建 + 聊聊邀请触发（docs/archive/spec_v1.md §3.2 AC1-AC3）
 // "做完啦"点击的入口：立即创建CompletionEvent，不依赖/不强制随后的聊天（AC1）。
 // AC2的邀请文案是全产品统一一句固定文案（product_handoff.md §6.5.1定稿），本模块只导出常量，
 // 由UI层（Task17起）负责展示；这一层不做任何渲染。
@@ -10,7 +10,9 @@ import { getCollectionState, recordCollectionItemCompletion } from "./collection
 import { track } from "./analytics.js";
 
 // product_handoff.md §6.5.1 定稿文案：全产品统一一句，不分内容类型。
-export const COMPLETION_INVITE_TEXT = "刚才做的这件事给你带来了什么感受吗？很愿意听你聊聊";
+// diary-conversation：问具体细节而非泛泛的"感受"，并敞口接住照片——两者都是未来能唤起记忆的线索，
+// 语气是敞口不是要求，不发照片、不细说都不影响流程。
+export const COMPLETION_INVITE_TEXT = "刚才有哪个瞬间、颜色，或者一点细节留下来了吗？想聊聊，或者拍了照片也可以给我看看";
 
 function generateId() {
 	return `ce_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;

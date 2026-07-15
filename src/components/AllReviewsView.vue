@@ -44,18 +44,18 @@ export default {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  padding: 32rpx 0 8rpx;
-  margin-bottom: 4rpx;
+  padding: 32rpx 24rpx 12rpx 0;
+  margin-bottom: 0;
 }
 
 .all-reviews__back-arrow {
-  font-size: 32rpx;
+  font-size: 34rpx;
   color: var(--c-primary);
   line-height: 1;
 }
 
 .all-reviews__back-label {
-  font-size: 28rpx;
+  font-size: 30rpx;
   color: var(--c-primary);
 }
 

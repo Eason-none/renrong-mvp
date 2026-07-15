@@ -52,6 +52,9 @@ export function getPrevDayCompleted() {
 	return get(KEYS.DAILY_COMPLETED_TASKS, []).filter((t) => t.completedDate !== today);
 }
 
+// diary-trace："清掉"只清这个区块的视觉条目（DAILY_COMPLETED_TASKS），不触碰
+// COMPLETION_EVENTS / COMPLETION_SUMMARIES——那两张表是日记数据本身，清掉后依然沉在storage里，
+// 不会被这个函数删除，也不会被任何机制主动重新展示（等未来的手记页）。
 export function clearPrevDayCompleted() {
 	const today = getTodayStr();
 	const list = get(KEYS.DAILY_COMPLETED_TASKS, []);

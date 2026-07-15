@@ -83,6 +83,19 @@ assert(
 assert(sent.anon_id === id1 && sent.event === "task_completed" && sent.content_id === "item_001", "载荷字段值正确");
 assert(requests[0].url.endsWith("/rest/v1/events"), "POST 到 /rest/v1/events");
 
+// ---- 3.5 chat_engaged：只在第一条用户消息上报、每对话至多一次（聊聊率防虚高口径）----
+// 走真实 conversation 模块端到端验证埋点位置，而不是直接调 track。
+const conversation = await import("../src/state/conversation.js");
+requests = [];
+const chatConv = conversation.createConversation("evt_chat_engaged_test");
+assert(requests.length === 0, "点聊聊创建对话不上报（空对话不入聊聊率分子）");
+conversation.addUserMessage(chatConv.id, "第一句话");
+await settle();
+assert(requests.length === 1 && requests[0].data[0].event === "chat_engaged", "第一条用户消息上报 chat_engaged");
+conversation.addUserMessage(chatConv.id, "第二句话");
+await settle();
+assert(requests.length === 1, "同一对话后续消息不重复上报");
+
 // ---- 4. 失败入队，flush 补发且 client_ts 不变 ----
 requests = [];
 nextRequestOk = false;

@@ -7,6 +7,11 @@
 // 推理阶段content一直是空字符串。如果不过滤reasoning_content，UI会把模型的"内心戏"也展示
 // 给用户，直接打破system prompt里"温柔的见证者"人设。下面只采集delta.content，丢弃reasoning_content。
 
+import { getMessageImages } from "../state/conversation.js";
+// #ifdef MP-WEIXIN
+import { callLlmCloud } from "./cloudFn.js";
+// #endif
+
 const PROXY_URL = import.meta.env.VITE_API_PROXY_URL || "http://localhost:5555";
 const MODEL = import.meta.env.VITE_QWEN_MODEL;
 // Supabase部署的代理前面挡着一层网关，没有Authorization头会被网关本身拒绝（跟Qwen真实key无关）；
@@ -24,7 +29,7 @@ export function buildMainChatSystemPrompt({ contentTitle, instructions, previous
 		? '- 如果这次的事跟上次有关联，可以自然提一下上次的印象，但不要用"这是第二次/第三次"这种计数式的表达\n'
 		: ""
 
-	return `你是一个温柔的见证者，陪用户聊聊他们刚刚做完的一件"丰容"小事。你不是教练，不是治疗师，不是任务监督员。
+	return `你是一个温柔的见证者，陪用户把刚刚做完的一件"丰容"小事写成一页日记——你是代笔人，不是教练，不是治疗师，不是任务监督员。用户此刻说出的具体细节，将是ta未来某天翻回来能唤起记忆和感受的唯一线索，所以你的核心工作是帮ta把细节留住，而不是评价这件事本身。
 
 这次用户刚完成的事：
 标题：${contentTitle}
@@ -33,6 +38,10 @@ ${previousLine}
 开场时，具体回指刚才这件事的内容（比如提一句你留意到的细节），发出一个开放的邀请，不要求用户必须回答什么问题，留出空间让ta自己说。
 
 对话过程中：
+- 优先关心能在未来唤起记忆的具体线索：看到的颜色/形状、听到的声音、身体的感觉、当时在哪儿、有没有哪个瞬间出乎意料——这些比"感受如何"更容易让人未来想起来
+- 用户说出一个具体细节时，直接接住、复述ta自己的原话或用词（而不是转述成抽象概括），让ta感到这个细节真的被听见了
+- 深入邀请的力度跟随用户的表达能量：ta展开得多，就可以顺着一个具体细节再邀请深入（比如"那个颜色具体是什么样的？"）；ta回得简短或没有展开，就收浅，用陪伴的语气接住，不催促、不重复索取。任何时候都不连环提问，一次回应里至多一个问句
+- 语态要变化时（比如从好奇的邀请转向安静的陪伴），先接住ta刚说的那句话、再让语态自然过渡——不要从追问突然切换到收尾感的呼应，那会让ta觉得你已经"聊够了、在等着写总结"
 - 不评价用户的表现，不说"你做得很好""你完成了""你坚持下来了"这类话
 - 不给建议，不说"下次可以试试……"——你只在乎这一次，不引导未来
 - 只反映和追问用户自己说出来的内容，把注意力还给ta说的话，不替ta下结论
@@ -42,7 +51,7 @@ ${previousLine}
 - 对内容/发现可以表达真实的惊喜和好奇，但绝不对ta的表现做判断
 - 回应控制在3句话以内，留白给用户
 - 语气像一个安静的朋友，不像一个app或助手
-- 不参与、不呼应"这次聊得是否该结束"的判断——这完全交给归档按钮和系统提示处理，跟你的回应无关。你的语气只反映用户此刻说的内容本身，不要因为对话轮次变多就主动把语气往"收尾"的方向带
+- 不参与、不呼应"这次聊得是否该结束"的判断——这完全交给归档按钮和系统提示处理，跟你的回应无关。你的语气只反映用户此刻说的内容本身，不要因为对话轮次变多就主动把语气往"收尾"的方向带，更不要用"再说一件吧""还有别的吗"这类话挽留——结束权永远在用户手里
 ${continuityLine}
 不要做的事：
 - 不判断用户是否"完成得对"或"完成得好"
@@ -50,18 +59,36 @@ ${continuityLine}
 - 不主动提起"归档"相关的事，归档是用户自己决定的，跟对话无关`
 }
 
-function toApiContent(content, image) {
-	if (!image) return content
-	return [
-		{ type: "text", text: content },
-		{ type: "image_url", image_url: { url: image } },
-	]
+// 三件幸福小事（three-good-things）专用system prompt：不是"见证一件丰容小事"的框架，
+// 是积极心理学Three Good Things练习的代笔版——逐件邀请、"三件"只是邀请的形状不是要凑够的数字，
+// 绝不点数/绝不暗示"才说了一件"。
+export function buildThreeGoodThingsSystemPrompt() {
+	return `你是一个温柔的代笔人，陪用户说说今天有没有什么让ta觉得幸福的小事——可能是吃到一口好东西、赶上了一趟车、听到一句让人愣一下的话，这些细小、具体、容易被忽略的时刻。这是一页只属于今天的日记，你的工作是帮ta把这些小事的细节留住，不是要ta总结今天过得好不好。
+
+对话过程中：
+- 每说一件，就接住这一件的具体细节（在哪儿、什么样子、当时在做什么），不用急着问下一件
+- 用户说完一件后，可以温和地邀请"还有别的吗"——但如果ta说没有了，或者话已经变短，就先接住ta刚说的这件、再自然收住，不追问、不点数、绝不说"才说了一件"这类话
+- 不评价这些小事"够不够幸福"或"算不算数"，用户觉得算就算
+- 不给建议，不引导用户去过更幸福的生活——你只在乎ta今天真的碰到的这几个具体时刻
+- 回应控制在2-3句话以内，留白给用户
+- 语气像一个安静的朋友，不像一个app或问卷
+- 不参与、不呼应"这次聊得是否该结束"的判断——结束权永远在用户手里，不要用"再说一件吧""还有吗"这类话挽留
+
+不要做的事：
+- 不输出任何隐藏标记或结构化数据、不统计或报告已经说了几件
+- 不判断用户今天过得"好不好"
+- 不主动提起"归档"相关的事`
 }
 
-// Conversation.messages（{role, content, image}）转成OpenAI兼容的messages数组；
-// 历史长度裁剪是调用方的职责，本函数只管格式转换。
+function toApiContent(content, images) {
+	if (!images.length) return content
+	return [{ type: "text", text: content }, ...images.map((url) => ({ type: "image_url", image_url: { url } }))]
+}
+
+// Conversation.messages（{role, content, images}，旧数据为单图 image 字段）转成
+// OpenAI兼容的messages数组；历史长度裁剪是调用方的职责，本函数只管格式转换。
 export function toApiMessages(messages) {
-	return messages.map((m) => ({ role: m.role, content: toApiContent(m.content, m.image) }))
+	return messages.map((m) => ({ role: m.role, content: toApiContent(m.content, getMessageImages(m)) }))
 }
 
 function parseSseLine(line, onDelta) {
@@ -111,37 +138,22 @@ async function streamMainChatH5(systemPrompt, history, onDelta) {
 	return full
 }
 
-// mp-weixin：小程序沙箱JS环境没有fetch/ReadableStream，wx.request的chunked接收方式
-// （enableChunked+onChunkReceived）未经真机/开发者工具验证，为避免交付一段无法验证是否真正工作
-// 的解析代码，这里退化成一次性请求——拿到完整回答后一次性回调onDelta，调用方拿到的仍是同一套
-// "增量回调"接口，不需要关心两端实现差异。流式动效在mp-weixin端的体验落差记录为已知风险，
-// 留给Task26/27人工验收时确认是否需要后续升级。
-function streamMainChatWeixin(systemPrompt, history, onDelta) {
-	return new Promise((resolve, reject) => {
-		uni.request({
-			url: `${PROXY_URL}/qwen-proxy/chat/completions`,
-			method: "POST",
-			header: {
-				"Content-Type": "application/json",
-				...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
-			},
-			data: {
-				model: MODEL,
-				messages: [{ role: "system", content: systemPrompt }, ...history],
-				stream: false,
-			},
-			success: (res) => {
-				if (res.statusCode !== 200) {
-					reject(new Error(`Qwen API请求失败：${res.statusCode} ${JSON.stringify(res.data)}`))
-					return
-				}
-				const text = res.data?.choices?.[0]?.message?.content ?? ""
-				if (text) onDelta(text)
-				resolve(text)
-			},
-			fail: (err) => reject(new Error(`Qwen API请求失败：${err.errMsg}`)),
-		})
+// mp-weixin：小程序沙箱JS环境没有fetch/ReadableStream，且上线后请求必须走微信云开发云函数
+// （真实key藏在云函数环境变量里，微信天然鉴权，无需域名/备案）。这里退化成一次性请求——拿到
+// 完整回答后一次性回调onDelta，调用方拿到的仍是同一套"增量回调"接口，不需要关心两端实现差异。
+// 流式动效在mp-weixin端的体验落差记录为已知风险，留待后续升级。
+async function streamMainChatWeixin(systemPrompt, history, onDelta) {
+	const { statusCode, data } = await callLlmCloud({
+		target: "qwen",
+		model: MODEL,
+		messages: [{ role: "system", content: systemPrompt }, ...history],
 	})
+	if (statusCode !== 200) {
+		throw new Error(`Qwen API请求失败：${statusCode} ${JSON.stringify(data)}`)
+	}
+	const text = data?.choices?.[0]?.message?.content ?? ""
+	if (text) onDelta(text)
+	return text
 }
 
 // 流式主对话：systemPrompt用buildMainChatSystemPrompt生成，history是toApiMessages的结果。

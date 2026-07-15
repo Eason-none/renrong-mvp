@@ -49,10 +49,10 @@ function assertThrows(fn, label) {
 	}
 }
 
-const C1 = "collection_001"; // 7个条目
-const C2 = "collection_002";
+const C1 = "collection_001"; // 8个条目
+const C2 = "collection_006";
 const C3 = "collection_003";
-const ITEMS = ["color_001", "color_004", "color_005", "color_006", "color_007", "color_008", "color_009"];
+const ITEMS = ["color_001", "color_004", "color_005", "color_007", "color_008", "color_009", "color_010", "color_011"];
 
 function addCompletionEvent(collectionId, contentId) {
 	const events = get(KEYS.COMPLETION_EVENTS, []);
@@ -106,15 +106,15 @@ assertThrows(() => machine.putDown(C1), "completed 状态下 putDown 应抛出")
 memory.clear();
 machine.activate(C1);
 addCompletionEvent(C1, "color_001");
-assertEqual(machine.getCompletionPct(C1), 1 / 7, "1/7 完成 pct 正确");
+assertEqual(machine.getCompletionPct(C1), 1 / 8, "1/8 完成 pct 正确");
 addCompletionEvent(C1, "color_004");
 addCompletionEvent(C1, "color_005");
-addCompletionEvent(C1, "color_006");
-assertEqual(machine.getCompletionPct(C1), 4 / 7, "4/7 完成 pct 正确");
+addCompletionEvent(C1, "color_010");
+assertEqual(machine.getCompletionPct(C1), 4 / 8, "4/8 完成 pct 正确");
 
 // 重复完成同一条目不增加分子
-addCompletionEvent(C1, "color_006");
-assertEqual(machine.getCompletionPct(C1), 4 / 7, "重复完成同一条目 pct 不变（distinct 语义）");
+addCompletionEvent(C1, "color_010");
+assertEqual(machine.getCompletionPct(C1), 4 / 8, "重复完成同一条目 pct 不变（distinct 语义）");
 
 // --- recordCollectionItemCompletion：active -> completed 自动推进 ---
 memory.clear();
@@ -157,13 +157,13 @@ memory.clear();
 machine.activate(C1);
 addCompletionEvent(C1, "color_001");
 addCompletionEvent(C1, "color_004");
-assertEqual(machine.getCompletionPct(C1), 2 / 7, "putDown 前 pct 为 2/7");
+assertEqual(machine.getCompletionPct(C1), 2 / 8, "putDown 前 pct 为 2/8");
 machine.putDown(C1);
 assertEqual(machine.getCollectionState(C1).status, "locked", "putDown 后状态回到 locked");
-assertEqual(machine.getCompletionPct(C1), 2 / 7, "putDown 后 completionEvent 仍保留，pct 不变");
+assertEqual(machine.getCompletionPct(C1), 2 / 8, "putDown 后 completionEvent 仍保留，pct 不变");
 // 重新激活后完成事件依然有效
 machine.activate(C1);
-assertEqual(machine.getCompletionPct(C1), 2 / 7, "重新 activate 后已完成条目仍计数");
+assertEqual(machine.getCompletionPct(C1), 2 / 8, "重新 activate 后已完成条目仍计数");
 
 if (failed) {
 	console.error("\nv8 collectionMachine 断言失败");
